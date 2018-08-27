@@ -12,6 +12,7 @@ class MyParser(argparse.ArgumentParser):
         self.print_help()
         sys.exit(2)
 
+#true if in scanner
 inScanner = False
         
 parser = MyParser(prog="docheck_stim")
@@ -21,10 +22,11 @@ parser.add_argument('-cpsec', dest='cps', help='Cycles per second (hz)', choices
 parser.add_argument("-type", dest="type", help="Type of stimulus display (boxcar or sine)", 
 	choices=['sine','boxcar'],default='sine')
 
+#true if should show instructions
 show_inst = False
 inst_text = ['The experiment will begin shortly.',
 			"Once we begin, please",
-			"keep your eyes on the gray dot."]
+			"keep your eyes on the central gray cross."]
 
 args = parser.parse_args()
 cycles = int(args.cycles)
@@ -92,10 +94,11 @@ rimg = psychopy.visual.ImageStim(
 )
 
 
-circle = psychopy.visual.Circle(
+fixate = psychopy.visual.ShapeStim(
     win=win,
     units="pix",
-    radius=10,
+    vertices=((-3,.5),(-.5,.5),(-.5,3),(.5,3),(.5,.5),(3,.5),(3,-.5),(.5,-.5),(.5,-3),(-.5,-3),(-.5,-.5),(-3,-.5)),
+    size=5,
     fillColor=[-0.25, -0.25, -0.25],
     lineColor=[-1, -1, -1]
 )
@@ -128,7 +131,7 @@ if show_inst is True:
 		clock.reset()
 		while clock.getTime() < 2:
 			pass
-	circle.draw()
+	fixate.draw()
 	win.flip()
 
 
@@ -140,15 +143,15 @@ while waiting:
 
 clock.reset()
 
-circle.radius = 15
-circle.draw()
+fixate.size = 4
+fixate.draw()
 win.flip()
 
 while clock.getTime() < 0.5:
 	pass
 
-circle.radius = 10
-circle.draw()
+fixate.size = 3
+fixate.draw()
 win.flip()
 
 con = 1
@@ -162,7 +165,7 @@ for k in range(len(ss)):
 	rimg.draw()
 	if draw_target[k] == 1:
 		target.draw()
-	circle.draw()
+	fixate.draw()
 	while clock.getTime() < timing[k]:
 		pass
 	win.flip()
