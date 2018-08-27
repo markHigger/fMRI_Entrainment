@@ -18,7 +18,10 @@ inScanner = False
 parser = MyParser(prog="docheck_stim")
 parser.add_argument('-subid', dest='subid', help="Subject ID. (Required)", required=True)
 parser.add_argument('-cycles', dest='cycles', help="Number of on/off cycles; padded with 10s 'off' at beginning and end.", default=10)
+#how fast the opacity changes/how often the dot appears
 parser.add_argument('-cpsec', dest='cps', help='Cycles per second (hz)', choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
+#how fast the flicker goes
+parser.add_argument('-fcpsec',dest='fcps',help='Cycles per second (hz) of flicker', default=12., type=float)
 parser.add_argument("-type", dest="type", help="Type of stimulus display (boxcar or sine)", 
 	choices=['sine','boxcar'],default='sine')
 
@@ -70,7 +73,9 @@ elif args.type == 'boxcar':
 		ss.extend(z)
 		ss.extend(z)
 
-sl = 5 * (1/60.)
+#establishes flicker rate
+fh = 5 * (args.fcps)
+sl = 5 * (1/fh) #.0833, or ~12Hz
 timing = [sl * trial for trial in range(len(ss))]
 
 win = psychopy.visual.Window(
