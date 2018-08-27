@@ -19,7 +19,8 @@ parser = MyParser(prog="docheck_stim")
 parser.add_argument('-subid', dest='subid', help="Subject ID. (Required)", required=True)
 parser.add_argument('-cycles', dest='cycles', help="Number of on/off cycles; padded with 10s 'off' at beginning and end.", default=10)
 #how fast the opacity changes/how often the dot appears
-parser.add_argument('-cpsec', dest='cps', help='Cycles per second (hz)', choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
+parser.add_argument('-tcpsec', dest='tcps', help='Cycles per second (hz)', choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
+parser.add_argument('-ntcpsec', dest='ntcps', help='Cycles per second (hz)', choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
 #how fast the flicker goes
 parser.add_argument('-fcpsec',dest='fcps',help='Cycles per second (hz) of flicker', default=12., type=float)
 parser.add_argument("-type", dest="type", help="Type of stimulus display (boxcar or sine)", 
@@ -34,10 +35,11 @@ inst_text = ['The experiment will begin shortly.',
 args = parser.parse_args()
 cycles = int(args.cycles)
 ## 10s blocks, 1/2 cycle per pi, so... 
-num_pi = float(args.cps) * 10
-step = int(120 / (num_pi / 2))
+tnum_pi = float(args.tcps) * 10
+ntnum_pi = float(args.ntcps) * 10
+step = int(120 / (tnum_pi / 2))
 if args.type == 'sine':
-	x = np.linspace(0,num_pi * np.pi, 120)
+	x = np.linspace(0,tnum_pi * np.pi, 120)
 	t = np.zeros(x.shape)
 	s = ((np.cos(x)* -1)+1) * 0.5
 	s = (s * 0.96) + 0.02
@@ -51,7 +53,7 @@ if args.type == 'sine':
 			ss.extend(s)
 			draw_target.extend(t)
 
-	x = np.linspace(0,num_pi *2 * np.pi, 120)
+	x = np.linspace(0,ntnum_pi * np.pi, 120) #took out *2*np.pi
 	s = ((np.cos(x)* -1)+1) * 0.5
 	s = (s * 0.96) + 0.02
 	z = np.zeros(x.shape)
@@ -61,7 +63,7 @@ if args.type == 'sine':
 			sr.extend(s)
 
 elif args.type == 'boxcar':
-	x = np.linspace(0,num_pi * np.pi, 120)
+	x = np.linspace(0,tnum_pi * np.pi, 120)
 	s = np.ones(x.shape)
 	z = np.zeros(x.shape)
 	ss = []
@@ -161,13 +163,13 @@ win.flip()
 
 con = 1
 for k in range(len(ss)):
-	limg.contrast = ss[k] * ((k % 2) * -1)
-	limg.contrast = con
-	limg.setOpacity(ss[k])
-	limg.draw()
+	rimg.contrast = ss[k] * ((k % 2) * -1)
 	rimg.contrast = con
-	rimg.setOpacity(sr[k])
+	rimg.setOpacity(ss[k])
 	rimg.draw()
+	limg.contrast = con
+	limg.setOpacity(sr[k])
+	limg.draw()
 	if draw_target[k] == 1:
 		target.draw()
 	fixate.draw()
