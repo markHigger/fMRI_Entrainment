@@ -17,8 +17,8 @@ inScanner = False
         
 parser = MyParser(prog="docheck_stim")
 parser.add_argument('-subid', dest='subid', help="Subject ID. (Required)", required=True)
-parser.add_argument('-cycles', dest='cycles', help="Number of on/off cycles; padded with 10s 'off' at beginning and end.", default=10)
-parser.add_argument('-tside', dest='side', help = 'What side the target should appear on', default='r')
+parser.add_argument('-seconds', dest='secs', help="Approximate number of seconds you want the task to last (will be rounded up to generate full target cycle).", default=60)
+parser.add_argument('-tside', dest='side', help = 'What side the target should appear on', default='r',type=str)
 #how fast the opacity changes/how often the dot appears
 parser.add_argument('-tcpsec', dest='tcps', help='Cycles per second (hz)', choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
 parser.add_argument('-ntcpsec', dest='ntcps', help='Cycles per second (hz)', choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
@@ -33,48 +33,38 @@ inst_text = ['The experiment will begin shortly.',
 			"Once we begin, please",
 			"keep your eyes on the central gray cross."]
 
+psychopy.event.clearEvents()
+
 args = parser.parse_args()
-cycles = int(args.cycles)
-## 10s blocks, 1/2 cycle per pi, so... 
-tnum_pi = float(args.tcps) * 10
-ntnum_pi = float(args.ntcps) * 10
-step = int(120 / (tnum_pi / 2))
+seconds = float(args.secs)
+block_len = (1/args.tcps) * (1/args.ntcps) * 10
+flicker = float(args.fcps)
+while seconds % int(block_len) != 0:
+    seconds += 1
+block_num = int(seconds / block_len)
+tnum_pi = float(args.tcps) * block_len
+ntnum_pi = float(args.ntcps) * block_len
+step = int((flicker*block_len) / (tnum_pi / 2))
 if args.type == 'sine':
-	x = np.linspace(0,tnum_pi * np.pi, 120)
+	x = np.linspace(0,tnum_pi * np.pi, (flicker*block_len))
 	t = np.zeros(x.shape)
 	s = ((np.cos(x)* -1)+1) * 0.5
 	s = (s * 0.96) + 0.02
 	z = np.zeros(x.shape)
 	target = []
 	draw_target = []
-	# draw_target.extend(t)
 	t[0:-1:step] = 1
-	for block in range(cycles):
-		for tr in range(3):
-			target.extend(s)
-			draw_target.extend(t)
+	for block in range(block_num):
+		target.extend(s)
+		draw_target.extend(t)
 
-	x = np.linspace(0,ntnum_pi * np.pi, 120) #took out *2*np.pi
+	x = np.linspace(0,ntnum_pi * np.pi, (flicker*block_len)) 
 	s = ((np.cos(x)* -1)+1) * 0.5
 	s = (s * 0.96) + 0.02
 	z = np.zeros(x.shape)
 	nontarget = []
-	for block in range(cycles):
-		for tr in range(3):
-			nontarget.extend(s)
-
-elif args.type == 'boxcar':
-	x = np.linspace(0,tnum_pi * np.pi, 120)
-	s = np.ones(x.shape)
-	z = np.zeros(x.shape)
-	target = []
-	target.extend(z)
-	## Do a classic 20/20 boxcar for each cycle
-	for block in range(cycles):
-		target.extend(s)
-		target.extend(s)
-		target.extend(z)
-		target.extend(z)
+	for block in range(block_num):
+		nontarget.extend(s)
 
 #establishes flicker rate
 fh = 5 * (args.fcps)
@@ -89,24 +79,24 @@ win = psychopy.visual.Window(
     
 timg = psychopy.visual.ImageStim(
     win=win,
-    image="left.png",
+    image="right.png",
     units="pix",
-    pos = (-150, 0)
+    pos = (150, 0)
 )
 
 ntimg = psychopy.visual.ImageStim(
     win=win,
-    image="right.png",
+    image="left.png",
     units="pix",
-    pos = (150,0)
+    pos = (-150,0)
 )
 
-check_tar = args.side
+check_tar = str(args.side)
 if check_tar != 'r':
-    timg.image='right.png'
-    timg.pos=(150,0)
-    ntimg.image='left.png'
-    ntimg.pos=(-150,0)
+    timg.image='left.png'
+    timg.pos=(-150,0)
+    ntimg.image='right.png'
+    ntimg.pos=(150,0)
 
 
 fixate = psychopy.visual.ShapeStim(
@@ -173,7 +163,7 @@ win.flip()
 
 con = 1
 for k in range(len(target)):
-	timg.contrast = target[k] * ((k % 2) * -1)
+	#timg.contrast = target[k] * ((k % 2) * -1)
 	timg.contrast = con
 	timg.setOpacity(target[k])
 	timg.draw()
@@ -189,11 +179,11 @@ for k in range(len(target)):
 	tlist.append(clock.getTime())
 	timg.contrast *= -1
 	if event.getKeys(keyList=["escape"]):
-		core.quit()
+         core.quit()
 	con *= -1
 dur = np.ones(len(target)) * sl
 
-cps_str = str(args.cps).replace('.','_')
+cps_str = str(args.tcps).replace('.','_')
 outname = "{}_{}_{}.ons".format(args.subid, args.type,cps_str)
 
 while path.exists(outname) is True:
@@ -206,5 +196,6 @@ for k in range(len(timing)):
 f.close()
 
 pickle.dump(tlist,open('test.p','w'))
+
 
 
