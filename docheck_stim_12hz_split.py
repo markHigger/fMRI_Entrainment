@@ -11,6 +11,8 @@ class MyParser(argparse.ArgumentParser):
         sys.stderr.write('error: %s\n' % message)
         self.print_help()
         sys.exit(2)
+
+inScanner = False
         
 parser = MyParser(prog="docheck_stim")
 parser.add_argument('-subid', dest='subid', help="Subject ID. (Required)", required=True)
@@ -102,7 +104,7 @@ inst = psychopy.visual.TextStim(
 	win=win,
 	text='Placeholder Text',
 	height=50.,
-	flipVert=False
+	flipVert=inScanner
 
 )
 
