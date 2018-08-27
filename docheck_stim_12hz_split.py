@@ -18,6 +18,7 @@ inScanner = False
 parser = MyParser(prog="docheck_stim")
 parser.add_argument('-subid', dest='subid', help="Subject ID. (Required)", required=True)
 parser.add_argument('-cycles', dest='cycles', help="Number of on/off cycles; padded with 10s 'off' at beginning and end.", default=10)
+parser.add_argument('-tside', dest='side', help = 'What side the target should appear on', default='r')
 #how fast the opacity changes/how often the dot appears
 parser.add_argument('-tcpsec', dest='tcps', help='Cycles per second (hz)', choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
 parser.add_argument('-ntcpsec', dest='ntcps', help='Cycles per second (hz)', choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
@@ -44,61 +45,68 @@ if args.type == 'sine':
 	s = ((np.cos(x)* -1)+1) * 0.5
 	s = (s * 0.96) + 0.02
 	z = np.zeros(x.shape)
-	ss = []
+	target = []
 	draw_target = []
 	# draw_target.extend(t)
 	t[0:-1:step] = 1
 	for block in range(cycles):
 		for tr in range(3):
-			ss.extend(s)
+			target.extend(s)
 			draw_target.extend(t)
 
 	x = np.linspace(0,ntnum_pi * np.pi, 120) #took out *2*np.pi
 	s = ((np.cos(x)* -1)+1) * 0.5
 	s = (s * 0.96) + 0.02
 	z = np.zeros(x.shape)
-	sr = []
+	nontarget = []
 	for block in range(cycles):
 		for tr in range(3):
-			sr.extend(s)
+			nontarget.extend(s)
 
 elif args.type == 'boxcar':
 	x = np.linspace(0,tnum_pi * np.pi, 120)
 	s = np.ones(x.shape)
 	z = np.zeros(x.shape)
-	ss = []
-	ss.extend(z)
+	target = []
+	target.extend(z)
 	## Do a classic 20/20 boxcar for each cycle
 	for block in range(cycles):
-		ss.extend(s)
-		ss.extend(s)
-		ss.extend(z)
-		ss.extend(z)
+		target.extend(s)
+		target.extend(s)
+		target.extend(z)
+		target.extend(z)
 
 #establishes flicker rate
 fh = 5 * (args.fcps)
 sl = 5 * (1/fh) #.0833, or ~12Hz
-timing = [sl * trial for trial in range(len(ss))]
+timing = [sl * trial for trial in range(len(target))]
 
 win = psychopy.visual.Window(
     size=[1024, 768],
     units="pix",
     fullscr=True,
 )
-
-limg = psychopy.visual.ImageStim(
+    
+timg = psychopy.visual.ImageStim(
     win=win,
     image="left.png",
     units="pix",
     pos = (-150, 0)
 )
 
-rimg = psychopy.visual.ImageStim(
+ntimg = psychopy.visual.ImageStim(
     win=win,
     image="right.png",
     units="pix",
     pos = (150,0)
 )
+
+check_tar = args.side
+if check_tar != 'r':
+    timg.image='right.png'
+    timg.pos=(150,0)
+    ntimg.image='left.png'
+    ntimg.pos=(-150,0)
 
 
 fixate = psychopy.visual.ShapeStim(
@@ -118,7 +126,7 @@ inst = psychopy.visual.TextStim(
 
 )
 
-target = psychopy.visual.Circle(
+target_obj = psychopy.visual.Circle(
     win=win,
     units="pix",
     radius=10,
@@ -126,6 +134,8 @@ target = psychopy.visual.Circle(
     lineColor=[-0.5, -0.5, -0.5],
     pos=(50,0)
 	)
+if check_tar != 'r':
+    target_obj.pos=(-50,0)
 
 event.Mouse(visible=False)
 
@@ -162,26 +172,26 @@ fixate.draw()
 win.flip()
 
 con = 1
-for k in range(len(ss)):
-	rimg.contrast = ss[k] * ((k % 2) * -1)
-	rimg.contrast = con
-	rimg.setOpacity(ss[k])
-	rimg.draw()
-	limg.contrast = con
-	limg.setOpacity(sr[k])
-	limg.draw()
+for k in range(len(target)):
+	timg.contrast = target[k] * ((k % 2) * -1)
+	timg.contrast = con
+	timg.setOpacity(target[k])
+	timg.draw()
+	ntimg.contrast = con
+	ntimg.setOpacity(nontarget[k])
+	ntimg.draw()
 	if draw_target[k] == 1:
-		target.draw()
+		target_obj.draw()
 	fixate.draw()
 	while clock.getTime() < timing[k]:
 		pass
 	win.flip()
 	tlist.append(clock.getTime())
-	rimg.contrast *= -1
+	timg.contrast *= -1
 	if event.getKeys(keyList=["escape"]):
 		core.quit()
 	con *= -1
-dur = np.ones(len(ss)) * sl
+dur = np.ones(len(target)) * sl
 
 cps_str = str(args.cps).replace('.','_')
 outname = "{}_{}_{}.ons".format(args.subid, args.type,cps_str)
@@ -192,7 +202,7 @@ while path.exists(outname) is True:
 
 f = open(outname,'w')
 for k in range(len(timing)):
-    f.write('{:1.3f} {:1.3f} {:1.3f}\n'.format(timing[k], dur[k], ss[k]))
+    f.write('{:1.3f} {:1.3f} {:1.3f}\n'.format(timing[k], dur[k], target[k]))
 f.close()
 
 pickle.dump(tlist,open('test.p','w'))
