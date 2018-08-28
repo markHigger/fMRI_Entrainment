@@ -6,11 +6,22 @@ import argparse
 import sys 
 from os import path 
 
+#add triggers
+#keep track of triggers in separate file
+#visual angle triangle from eye to each side of screen -> dist between fixation and either checkerboard
+    #is 4 degrees (2 each side) of visual angle (how far person is from screen in scanner)
+#move target to be closer to edge
+#need display resolution and 1024/768 (~300 cm) - talk to Raj and/or Cathy about distance
+#frequency of critical stimuli (1/5) 
+#trigger with critical stimuli
+#3 file format for output 
+
 class MyParser(argparse.ArgumentParser):
     def error(self, message):
         sys.stderr.write('error: %s\n' % message)
         self.print_help()
         sys.exit(2)
+
 """ Function Description
 to call :
     'python docheck_stim_12hz_split <args>'
@@ -28,6 +39,7 @@ Arguments:
         -tcpsec - Freq of non-target side checkerboard fading in Hz
             -either: 0.1, 0.2, 0.5 or 1.0
             -default: 0.5
+        -fcpsec - Freq of carrier
         -phase - Degrees of shift for non-target side
             -default: 60
 """
@@ -240,8 +252,11 @@ win.flip()
 #set starting checkerboard contrast to 1
 con = 1
 
-#create empty timing list
+#create empty timing, target timing list
 tlist = []
+targetlist = []
+t_onset = None
+t_offset = None
 
 ###############################################################################
 #run experiment
@@ -263,7 +278,7 @@ for frame in range(len(targetFade)):
     #Draw target at given times, this should occur every time the fade finishes
     #   an occilation
     if draw_target[frame] == 1:
-		target_obj.draw()
+        target_obj.draw()
     
     #redraw fixation point
     fixate.draw()
@@ -274,7 +289,22 @@ for frame in range(len(targetFade)):
     
     #write to screen and record time written
     win.flip()
-    tlist.append(clock.getTime())
+    time = clock.getTime()
+    tlist.append(time)
+    
+    if draw_target[frame] == 1:
+        t_onset = time
+    else:
+        if t_onset != None and t_offset == None:
+            t_offset = time
+        else:
+            t_onset = None
+            t_offset = None
+            
+    try:
+        targetlist.append([t_onset,(t_onset-t_offset),1])
+    except (TypeError):
+        pass
     
     #quit program and close window when esc is pressed
     if event.getKeys(keyList=["escape"]):
@@ -298,11 +328,16 @@ outname = "{}_{}.ons".format(args.subid, cps_str)
 
 while path.exists(outname) is True:
 	base = outname.split('.')[0]
-	outname = base+'+.ons'
+	outname = base+'.ons'
 
 f = open(outname,'w')
 for k in range(len(timing)):
     f.write('{:1.3f} {:1.3f} {:1.3f}\n'.format(timing[k], dur[k], targetFade[k]))
+f.close()
+
+f = open(args.subid+'_'+cps_str+'_events.ons','w')
+for k in targetlist:
+    f.write('{},{},{}\n'.format(k[0],k[1],k[2]))
 f.close()
 
 pickle.dump(tlist,open('test.p','w'))
