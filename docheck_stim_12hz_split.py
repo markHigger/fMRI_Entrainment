@@ -37,13 +37,14 @@ psychopy.event.clearEvents()
 
 args = parser.parse_args()
 seconds = float(args.secs)
-block_len = (1/args.tcps) * (1/args.ntcps) * 10
+tcps = args.tcps * 2
+ntcps = args.ntcps * 2
+block_len = (1/tcps) * (1/ntcps) * 10
 flicker = float(args.fcps)
-while seconds % int(block_len) != 0:
-    seconds += 1
+seconds += (seconds % block_len)
 block_num = int(seconds / block_len)
-tnum_pi = float(args.tcps) * block_len
-ntnum_pi = float(args.ntcps) * block_len
+tnum_pi = float(tcps) * block_len
+ntnum_pi = float(ntcps) * block_len
 step = int((flicker*block_len) / (tnum_pi / 2))
 if args.type == 'sine':
 	x = np.linspace(0,tnum_pi * np.pi, (flicker*block_len))
@@ -67,14 +68,13 @@ if args.type == 'sine':
 		nontarget.extend(s)
 
 #establishes flicker rate
-fh = 5 * (args.fcps)
-sl = 5 * (1/fh) #.0833, or ~12Hz
+sl = (1/args.fcps) #.0833, or ~12Hz
 timing = [sl * trial for trial in range(len(target))]
 
 win = psychopy.visual.Window(
     size=[1024, 768],
     units="pix",
-    fullscr=True,
+    fullscr=False,
 )
     
 timg = psychopy.visual.ImageStim(
