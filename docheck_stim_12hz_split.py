@@ -28,6 +28,8 @@ Arguments:
         -tcpsec - Freq of non-target side checkerboard fading in Hz
             -either: 0.1, 0.2, 0.5 or 1.0
             -default: 0.5
+        -phase - Degrees of shift for non-target side
+            -default: 60
 """
 #true if in scanner
 inScanner = False
@@ -62,6 +64,11 @@ parser.add_argument('-fcpsec',dest='fcps',
                     help='Cycles per second (hz) of flicker', 
                     default=12., type=float)
 
+#phase shift of non-target
+parser.add_argument('-phase',dest='ph',
+                    help='Degrees of shift of non-target',
+                    default=60)
+
 #true if should show instructions
 show_inst = False
 inst_text = ['The experiment will begin shortly.',
@@ -74,9 +81,11 @@ psychopy.event.clearEvents()
 args = parser.parse_args()
 flicker = float(args.fcps)
 seconds = float(args.secs)
-#mulitply frequency times 2 to get correct frequency
+#multiply frequency times 2 to get correct frequency
 tcps = args.tcps * 2
 ntcps = args.ntcps * 2
+phase_degrees = args.ph
+phase_radians = phase_degrees * (np.pi / 180)
 ###############################################################################
 #setup psychopy objects
 win = psychopy.visual.Window(
@@ -178,7 +187,7 @@ SampleBase_ntarget = np.linspace(0,ntnum_pi * np.pi, (flicker*block_len))
 # *Fade ranges from 0 to 1 in sin wave 
 targetFade_block = ((np.cos(SampleBase_target)* -1)+1) * 0.5
 targetFade_block  = (targetFade_block  * 0.96) + 0.02
-ntargetFade_block = ((np.cos(SampleBase_ntarget)* -1)+1) * 0.5
+ntargetFade_block = ((np.cos(SampleBase_ntarget + phase_radians)* -1)+1) * 0.5
 ntargetFade_block = (ntargetFade_block * 0.96) + 0.02
 
 
