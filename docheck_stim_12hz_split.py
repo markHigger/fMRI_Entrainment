@@ -6,8 +6,6 @@ import argparse
 import sys 
 from os import path 
 
-#add triggers
-#keep track of triggers in separate file
 #visual angle triangle from eye to each side of screen -> dist between fixation and either checkerboard
     #is 4 degrees (2 each side) of visual angle (how far person is from screen in scanner)
 #move target to be closer to edge
@@ -89,6 +87,10 @@ parser.add_argument('-refresh',dest='refresh',
                     help='Refresh rate of monitor',
                     default=60, type=int)
 
+parser.add_argument('-stim_rate',dest='csrate',
+                    help='Denominator of critical stimulus rate. e.g. input for 1/10 is 10',
+                    default=5, type=int)
+
 #true if should show instructions
 show_inst = False
 inst_text = ['The experiment will begin shortly.',
@@ -107,6 +109,7 @@ tcps = args.tcps * 2
 ntcps = args.ntcps * 2
 phase_degrees = args.ph
 phase_radians = phase_degrees * (np.pi / 180)
+csrate = int(args.csrate)
 ###############################################################################
 #setup psychopy objects
 win = psychopy.visual.Window(
@@ -200,7 +203,10 @@ if show_inst:
 #Calculate Checkerboards
 
 #Cut time into repeated blocks to allow for even divisibility by different freqs
-block_len = (1/tcps) * (1/ntcps) * 10
+#block_len = (1/tcps) * (1/ntcps) * 40
+if csrate % 2 != 0:
+    csrate += 1
+block_len = csrate * (1/tcps) * (1/ntcps)
 #length of total video in s
 seconds += (seconds % block_len)
 #length of video in blocks
@@ -228,7 +234,21 @@ ntargetFade_block = (ntargetFade_block * 0.96) + 0.02
 #the target is drawn 
 t = np.zeros(SampleBase_target.shape)
 step = int((refresh*block_len) / (tnum_pi / 2))
+critical_step = int((refresh*block_len)/(tnum_pi / (2 * csrate)))
 t[0:-1:step] = 1
+#count=0
+#x = 0
+#while x < range(t.shape[0]):
+#    y = np.random.randint(0,5)
+#    if y == 0 or count == 5:
+#        t[x] = 2
+#        count = 0
+#    else:
+#        count += 1
+#    x += critical_step
+    
+    
+t[0:-1:critical_step] = 2
 
 target_side = np.zeros(SampleBase_target.shape)
 target_side_step = int((refresh*block_len) / (tflicker * block_len))
@@ -314,8 +334,13 @@ for frame in range(len(timing)):
     
     #Draw target at given times, this should occur every time the fade finishes
     #   an occilation
-    if draw_target[frame] == 1:
+    if draw_target[frame] > 0:
+        if draw_target[frame] > 1:
+            target_obj.fillColor=[.25, .25, .25]
+        else:
+            target_obj.fillColor=[-0.25, -0.25, -0.25]
         target_obj.draw()
+        
     
     #redraw fixation point
     fixate.draw()
