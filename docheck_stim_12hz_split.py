@@ -25,7 +25,7 @@ Arguments:
         -tcpsec - Freq of target side checkerboard fading in Hz
             -either: 0.1, 0.2, 0.5 or 1.0
             -default: 0.5
-        -tcpsec - Freq of non-target side checkerboard fading in Hz
+        -ntcpsec - Freq of non-target side checkerboard fading in Hz
             -either: 0.1, 0.2, 0.5 or 1.0
             -default: 0.5
         -phase - Degrees of shift for non-target side
@@ -296,15 +296,19 @@ cps_str = str(args.tcps).replace('.','_')
 #get output file name as <subjectid>_<target_rate>
 outname = "{}_{}.ons".format(args.subid, cps_str)
 
+#add + to file name if filename already exists
 while path.exists(outname) is True:
 	base = outname.split('.')[0]
 	outname = base+'+.ons'
 
 f = open(outname,'w')
+
+#Write <total_time> <time_between frames> <target_fade_val> for all frames
 for k in range(len(timing)):
     f.write('{:1.3f} {:1.3f} {:1.3f}\n'.format(timing[k], dur[k], targetFade[k]))
 f.close()
 
+#compress file before writting
 pickle.dump(tlist,open('test.p','w'))
 
 
