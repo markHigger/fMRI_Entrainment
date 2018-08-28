@@ -67,7 +67,7 @@ parser.add_argument('-fcpsec',dest='fcps',
 #phase shift of non-target
 parser.add_argument('-phase',dest='ph',
                     help='Degrees of shift of non-target',
-                    default=60)
+                    default=60, type=int)
 
 #true if should show instructions
 show_inst = False
