@@ -1,6 +1,6 @@
 import psychopy.visual
 import numpy as np
-from psychopy import core, event
+from psychopy import core, event, logging
 import pickle
 import argparse
 import sys 
@@ -89,6 +89,10 @@ parser.add_argument('-refresh',dest='refresh',
                     help='Refresh rate of monitor',
                     default=60, type=int)
 
+parser.add_argument('-odd_rate',dest='orate',
+                    help='Rate of oddball appearance, where the int entered is the denominator',
+                    default = 5, type=int)
+
 #true if should show instructions
 show_inst = False
 inst_text = ['The experiment will begin shortly.',
@@ -107,12 +111,18 @@ tcps = args.tcps * 2
 ntcps = args.ntcps * 2
 phase_degrees = args.ph
 phase_radians = phase_degrees * (np.pi / 180)
+orate = args.orate
+if orate % 2 != 0:
+    cycles = orate * 2
+else:
+    cycles = orate
 ###############################################################################
 #setup psychopy objects
 win = psychopy.visual.Window(
     size=[1024, 768],
     units="pix",
     fullscr=False,
+    waitBlanking=True
 )
     
 timg = psychopy.visual.ImageStim(
@@ -185,22 +195,12 @@ if show_inst:
 			pass
 	fixate.draw()
 	win.flip()
-
-###############################################################################
-#Wait for pulse
-
-#if inScanner:
-#    t0 = waitForPulse(dev,timer)
-#    timer.expstart()
-#else:
-#    timer.expstart()
-#    t0 = timer.get_time()
     
 ###############################################################################
 #Calculate Checkerboards
 
 #Cut time into repeated blocks to allow for even divisibility by different freqs
-block_len = (1/tcps) * (1/ntcps) * 10
+block_len = (1/tcps) * (1/ntcps) * (cycles)
 #length of total video in s
 seconds += (seconds % block_len)
 #length of video in blocks
@@ -228,7 +228,9 @@ ntargetFade_block = (ntargetFade_block * 0.96) + 0.02
 #the target is drawn 
 t = np.zeros(SampleBase_target.shape)
 step = int((refresh*block_len) / (tnum_pi / 2))
-t[0:-1:step] = 1
+step_flick = int(refresh * (1/tflicker))
+t[0::step] = 1
+t[step_flick::step] = -1
 
 target_side = np.zeros(SampleBase_target.shape)
 target_side_step = int((refresh*block_len) / (tflicker * block_len))
@@ -247,15 +249,30 @@ ntargetFlicker = []
 for block in range(block_num):
     targetFade.extend(targetFade_block)
     ntargetFade.extend(ntargetFade_block)
-    draw_target.extend(t)
     targetFlicker.extend(target_side)
     ntargetFlicker.extend(ntarget_side)
+    
+    copy_t = t.copy()
+    mult = cycles // orate
+    for y in range(mult):
+        x = np.random.randint(0,(cycles/2)-1)
+        copy_t[step*x] = 2
+    draw_target.extend(copy_t)
+    
 
 #establishes flicker rate
-sl = (1/args.refresh) #.0833, or ~12Hz
+sl = 1/float(args.refresh) #.0833, or ~12Hz
 timing = [sl * trial for trial in range(len(targetFlicker))]
 
+###############################################################################
+#Wait for pulse
 
+#if inScanner:
+#    t0 = waitForPulse(dev,clock)
+#    clock.reset()
+#else:
+#    clock.reset()
+#    t0 = clock.getTime()
 
 ##############################################################################
 #setup experiment
@@ -289,11 +306,15 @@ ntcon = 1
 #create empty timing, target timing list
 tlist = []
 targetlist = []
+debug = []
 t_onset = None
 t_offset = None
-
+d_onset = None
+d_offset = None
+t_crit = None
 ###############################################################################
 #run experiment
+
 for frame in range(len(timing)):
     
     #set alternating contrast on both checkerboards
@@ -315,7 +336,16 @@ for frame in range(len(timing)):
     #Draw target at given times, this should occur every time the fade finishes
     #   an occilation
     if draw_target[frame] == 1:
-        target_obj.draw()
+        target_obj.setOpacity(1)
+        target_obj.fillColor = [-.25,-.25,-.25]
+        t_crit = 0
+    elif draw_target[frame] == 2:
+        target_obj.setOpacity(1)
+        target_obj.fillColor = [0,0,0]
+        t_crit = 1
+    elif draw_target[frame] == -1:
+        target_obj.setOpacity(0)
+    target_obj.draw()
     
     #redraw fixation point
     fixate.draw()
@@ -329,19 +359,18 @@ for frame in range(len(timing)):
     time = clock.getTime()
     tlist.append(time)
     
-    if draw_target[frame] == 1:
+    if draw_target[frame] == 1 or draw_target[frame] == 2:
         t_onset = time
-    else:
-        if t_onset != None and t_offset == None:
-            t_offset = time
-        else:
-            t_onset = None
-            t_offset = None
+        d_onset = timing[frame]
+    elif draw_target[frame] == -1:
+        t_offset = time
+        d_offset = timing[frame]
             
-    try:
-        targetlist.append([t_onset,(t_onset-t_offset),1])
-    except (TypeError):
-        pass
+    if t_onset != None and t_offset != None:
+        targetlist.append([t_onset,(t_offset-t_onset),t_crit])
+        debug.append([t_onset,t_offset,(t_offset-t_onset),d_onset,d_offset,(d_offset-d_onset)])
+        t_onset = None
+        t_offset = None
     
     #quit program and close window when esc is pressed
     if event.getKeys(keyList=["escape"]):
@@ -366,21 +395,23 @@ outname = "{}_{}.ons".format(args.subid, cps_str)
 #add + to file name if filename already exists
 while path.exists(outname) is True:
 	base = outname.split('.')[0]
-	outname = base+'.ons'
+	outname = base+'+.ons'
 
 f = open(outname,'w')
 
 #Write <total_time> <time_between frames> <target_fade_val> for all frames
-for k in range(len(timing)):
-    f.write('{:1.3f} {:1.3f} {:1.3f}\n'.format(timing[k], dur[k], targetFade[k]))
+for k in debug:
+    f.write('{},{},{},{}\n'.format(k[0],k[2],k[3],k[5]))
 f.close()
 
-f = open(args.subid+'_'+cps_str+'_events.ons','w')
+outname = outname.rstrip('.ons')
+f = open(outname+'_events.ons','w')
 for k in targetlist:
     f.write('{},{},{}\n'.format(k[0],k[1],k[2]))
 f.close()
 
 pickle.dump(tlist,open('test.p','w'))
+
 
 
 
