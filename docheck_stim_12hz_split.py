@@ -131,10 +131,10 @@ ntcps = args.ntcps
 phase_degrees = args.ph
 phase_radians = phase_degrees * (np.pi / 180)
 orate = args.orate
-#if orate % 2 != 0:
-#    cycles = orate * 2
-#else:
-cycles = orate
+if orate % 2 != 0:
+    cycles = orate * 2
+else:
+    cycles = orate
 ###############################################################################
 #setup psychopy objects
 win = psychopy.visual.Window(
@@ -274,7 +274,8 @@ for block in range(block_num):
     copy_t = t.copy()
     mult = cycles // orate
     for y in range(mult):
-        x = np.random.randint(0,(cycles/2)-1)
+        l = 0
+        x = np.random.randint(0,(cycles)-1)
         copy_t[step*x] = 2
     draw_target.extend(copy_t)
     
