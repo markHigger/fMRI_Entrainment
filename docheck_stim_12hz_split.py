@@ -5,6 +5,7 @@ import pickle
 import argparse
 import sys 
 from os import path 
+from fractions import gcd
 
 #add triggers
 #keep track of triggers in separate file
@@ -39,13 +40,27 @@ Arguments:
         -ntcpsec - Freq of non-target side checkerboard fading in Hz
             -either: 0.1, 0.2, 0.5 or 1.0
             -default: 0.5
-        -fcpsec - Freq of carrier
+        -tfpsec - Freq of target carrier
+            -default: 12.
+        -ntfpsec - Freq of non-target carrier
+            -default: 12.
         -phase - Degrees of shift for non-target side
             -default: 60
+        -refresh - The refresh rate of the monitor
+            -default: 60
+        -odd_rate - The rate you want the critical target to appear
+            -default: 5
+        -instruct - True if you want to show the instructions before running
+            -default: True
 """
 #true if in scanner
 inScanner = False
 
+###############################################################################
+#lcm function
+
+def lcm(a, b):
+    return (a * b) / gcd(a,b)
 ###############################################################################
 #Parse Inputs
 
@@ -72,7 +87,7 @@ parser.add_argument('-ntcpsec', dest='ntcps',
                     choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
 
 #how fast the flicker goes
-parser.add_argument('-tfcpsec',dest='tfcps',
+parser.add_argument('-tfpsec',dest='tfcps',
                     help='Cycles per second (hz) of flicker', 
                     default=12., type=float)
 
@@ -93,8 +108,14 @@ parser.add_argument('-odd_rate',dest='orate',
                     help='Rate of oddball appearance, where the int entered is the denominator',
                     default = 5, type=int)
 
+parser.add_argument('-instruct',dest='ins',
+                    help='True to show instructions before running',
+                    default = True, type=bool)
+
+args = parser.parse_args()
+
 #true if should show instructions
-show_inst = False
+show_inst = args.ins
 inst_text = ['The experiment will begin shortly.',
 			"Once we begin, please",
 			"keep your eyes on the central gray cross."]
@@ -102,26 +123,24 @@ inst_text = ['The experiment will begin shortly.',
 psychopy.event.clearEvents()
 
 #get arguments
-args = parser.parse_args()
 tflicker = float(args.tfcps)
 ntflicker = float(args.ntfcps)
 seconds = float(args.secs)
-#multiply frequency times 2 to get correct frequency
-tcps = args.tcps * 2
-ntcps = args.ntcps * 2
+tcps = args.tcps 
+ntcps = args.ntcps 
 phase_degrees = args.ph
 phase_radians = phase_degrees * (np.pi / 180)
 orate = args.orate
-if orate % 2 != 0:
-    cycles = orate * 2
-else:
-    cycles = orate
+#if orate % 2 != 0:
+#    cycles = orate * 2
+#else:
+cycles = orate
 ###############################################################################
 #setup psychopy objects
 win = psychopy.visual.Window(
     size=[1024, 768],
     units="pix",
-    fullscr=False,
+    fullscr=True,
     waitBlanking=True
 )
     
@@ -200,7 +219,7 @@ if show_inst:
 #Calculate Checkerboards
 
 #Cut time into repeated blocks to allow for even divisibility by different freqs
-block_len = (1/tcps) * (1/ntcps) * (cycles)
+block_len = lcm((1/tcps),(1/ntcps)) * (cycles)
 #length of total video in s
 seconds += (seconds % block_len)
 #length of video in blocks
@@ -213,8 +232,8 @@ tnum_pi = float(tcps) * block_len
 ntnum_pi = float(ntcps) * block_len
 
 #Calculate times where fade is calculated
-SampleBase_target = np.linspace(0,tnum_pi * np.pi, (refresh*block_len))
-SampleBase_ntarget = np.linspace(0,ntnum_pi * np.pi, (refresh*block_len)) 
+SampleBase_target = np.linspace(0,tnum_pi * 2 * np.pi, (refresh*block_len))
+SampleBase_ntarget = np.linspace(0,ntnum_pi * 2 * np.pi, (refresh*block_len)) 
 
 #caclulate checkerboard fade
 # *Fade ranges from 0 to 1 in sin wave 
@@ -227,7 +246,7 @@ ntargetFade_block = (ntargetFade_block * 0.96) + 0.02
 #find when to draw the target in each block
 #the target is drawn 
 t = np.zeros(SampleBase_target.shape)
-step = int((refresh*block_len) / (tnum_pi / 2))
+step = int((refresh*block_len) / (tnum_pi))
 step_flick = int(refresh * (1/tflicker))
 t[0::step] = 1
 t[step_flick::step] = -1
@@ -349,10 +368,6 @@ for frame in range(len(timing)):
     
     #redraw fixation point
     fixate.draw()
-    
-    #ensure timing matches before writing to screen
-    while clock.getTime() < timing[frame]:
-        pass
     
     #write to screen and record time written
     win.flip()
