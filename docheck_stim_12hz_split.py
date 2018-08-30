@@ -6,16 +6,11 @@ import argparse
 import sys 
 from os import path 
 from fractions import gcd
+import math
 
 #add triggers
 #keep track of triggers in separate file
-#visual angle triangle from eye to each side of screen -> dist between fixation and either checkerboard
-    #is 4 degrees (2 each side) of visual angle (how far person is from screen in scanner)
-#move target to be closer to edge
-#need display resolution and 1024/768 (~300 cm) - talk to Raj and/or Cathy about distance
-#frequency of critical stimuli (1/5) 
-#trigger with critical stimuli
-#3 file format for output 
+#trigger with critical stimuli 
 
 class MyParser(argparse.ArgumentParser):
     def error(self, message):
@@ -52,6 +47,11 @@ Arguments:
             -default: 5
         -instruct - True if you want to show the instructions before running
             -default: True
+        -resolution - Monitor dimensions in pixels (w, h) and width of screen in cm
+            -default (2560,1600,33.782)
+        -distance - Viewing distance from monitor in cm
+            -default = 46.
+        
 """
 #true if in scanner
 inScanner = False
@@ -112,6 +112,14 @@ parser.add_argument('-instruct',dest='ins',
                     help='True to show instructions before running',
                     default = True, type=bool)
 
+parser.add_argument('-resolution',dest='res',
+                    help='Monitor width, height, width in pixels, pixels, cm',
+                    default=(1440,900,33.782), type=tuple)
+
+parser.add_argument('-distance',dest='view_dist',
+                    help='Viewing distance from monitor',
+                    default = 46., type=float)
+
 args = parser.parse_args()
 
 #true if should show instructions
@@ -131,14 +139,26 @@ ntcps = args.ntcps
 phase_degrees = args.ph
 phase_radians = phase_degrees * (np.pi / 180)
 orate = args.orate
-if orate % 2 != 0:
+if orate < 10:
     cycles = orate * 2
 else:
     cycles = orate
+    
+res = args.res
+dist = args.view_dist
+#find the distance in cm the two halfs should be apart
+base_dist = (2 * dist * math.tan(math.radians(4)/2))
+#find the distance from center each half should be, in cm
+base_dist_half = base_dist / 2
+#convert cm to pixels
+pixpcm = res[0] / res[2]
+#convert base distance to pixels (add 128 to adjust for image size)
+base_dist_pix = int(base_dist_half * pixpcm) + 128
+
 ###############################################################################
 #setup psychopy objects
 win = psychopy.visual.Window(
-    size=[1024, 768],
+    size=[res[0], res[1]],
     units="pix",
     fullscr=True,
     waitBlanking=True
@@ -148,22 +168,22 @@ timg = psychopy.visual.ImageStim(
     win=win,
     image="right.png",
     units="pix",
-    pos = (150, 0)
+    pos = (base_dist_pix, 0)
 )
 
 ntimg = psychopy.visual.ImageStim(
     win=win,
     image="left.png",
     units="pix",
-    pos = (-150,0)
+    pos = (base_dist_pix * -1,0)
 )
 
 check_tar = str(args.side)
 if check_tar != 'r':
     timg.image='left.png'
-    timg.pos=(-150,0)
+    timg.pos=(base_dist_pix * -1,0)
     ntimg.image='right.png'
-    ntimg.pos=(150,0)
+    ntimg.pos=(base_dist_pix,0)
 
 
 fixate = psychopy.visual.ShapeStim(
@@ -194,7 +214,7 @@ target_obj = psychopy.visual.Circle(
     radius=10,
     fillColor=[-0.125, -0.125, -0.125],
     lineColor=[-0.5, -0.5, -0.5],
-    pos=(50,0)
+    pos=(base_dist_pix / 2,0)
 	)
 if check_tar != 'r':
     target_obj.pos=(-50,0)
@@ -287,12 +307,12 @@ timing = [sl * trial for trial in range(len(targetFlicker))]
 ###############################################################################
 #Wait for pulse
 
-#if inScanner:
+if inScanner:
 #    t0 = waitForPulse(dev,clock)
-#    clock.reset()
-#else:
-#    clock.reset()
-#    t0 = clock.getTime()
+    clock.reset()
+else:
+    clock.reset()
+    t0 = clock.getTime()
 
 ##############################################################################
 #setup experiment
@@ -399,6 +419,7 @@ win.close()
 ###############################################################################
 #save timings in output file
 
+t1 = clock.getTime()
 
 dur = np.ones(len(targetFade)) * sl # theoretical duration between frames
 
@@ -415,16 +436,23 @@ while path.exists(outname) is True:
 
 f = open(outname,'w')
 
-#Write <total_time> <time_between frames> <target_fade_val> for all frames
+#Write trigger_onset, trigger_duration, expected_onset, expected_duration
 for k in debug:
     f.write('{},{},{},{}\n'.format(k[0],k[2],k[3],k[5]))
 f.close()
 
+#Feat format for triggers
 outname = outname.rstrip('.ons')
 f = open(outname+'_events.ons','w')
 for k in targetlist:
     f.write('{},{},{}\n'.format(k[0],k[1],k[2]))
 f.close()
+
+#Write to participate run log file, onset and offset time of run
+log_name = args.subid + '.log'
+f = open(log_name,'a')
+f.write(cps_str + ' time on: ' + str(t0))
+f.write(cps_str + ' time off: ' + str(t1))
 
 pickle.dump(tlist,open('test.p','w'))
 
