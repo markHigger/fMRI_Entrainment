@@ -120,6 +120,10 @@ parser.add_argument('-distance',dest='view_dist',
                     help='Viewing distance from monitor',
                     default = 46., type=float)
 
+parser.add_arguemnt('-scan',dest='scanner',
+                    help='True if in scanner',
+                    default=False, type=bool)
+
 args = parser.parse_args()
 
 #true if should show instructions
@@ -143,6 +147,9 @@ if orate < 10:
     cycles = orate * 2
 else:
     cycles = orate
+    
+#true if in scanner
+inScanner = args.scanner
     
 res = args.res
 dist = args.view_dist
