@@ -7,6 +7,8 @@ import sys
 from os import path 
 from fractions import gcd
 import math
+from nki3Tbasics import *
+import pyxid
 
 #add triggers
 #keep track of triggers in separate file
@@ -120,7 +122,7 @@ parser.add_argument('-distance',dest='view_dist',
                     help='Viewing distance from monitor',
                     default = 46., type=float)
 
-parser.add_arguemnt('-scan',dest='scanner',
+parser.add_argument('-scan',dest='scanner',
                     help='True if in scanner',
                     default=False, type=bool)
 
@@ -150,6 +152,8 @@ else:
     
 #true if in scanner
 inScanner = args.scanner
+if inScanner:
+    dev = setupXID(pyxid)
     
 res = args.res
 dist = args.view_dist
@@ -315,7 +319,7 @@ timing = [sl * trial for trial in range(len(targetFlicker))]
 #Wait for pulse
 
 if inScanner:
-#    t0 = waitForPulse(dev,clock)
+    t0 = waitForPulse(dev)
     clock.reset()
 else:
     clock.reset()
@@ -441,12 +445,11 @@ while path.exists(outname) is True:
 	base = outname.split('.')[0]
 	outname = base+'+.ons'
 
-f = open(outname,'w')
-
 #Write trigger_onset, trigger_duration, expected_onset, expected_duration
-for k in debug:
-    f.write('{},{},{},{}\n'.format(k[0],k[2],k[3],k[5]))
-f.close()
+#f = open(outname,'w')
+#for k in debug:
+#    f.write('{},{},{},{}\n'.format(k[0],k[2],k[3],k[5]))
+#f.close()
 
 #Feat format for triggers
 outname = outname.rstrip('.ons')
@@ -455,11 +458,11 @@ for k in targetlist:
     f.write('{},{},{}\n'.format(k[0],k[1],k[2]))
 f.close()
 
-#Write to participate run log file, onset and offset time of run
+#Write to participant run log file, onset and offset time of run
 log_name = args.subid + '.log'
 f = open(log_name,'a')
 f.write(cps_str + ' time on: ' + str(t0))
-f.write(cps_str + ' time off: ' + str(t1))
+f.write(cps_str + ' time off: ' + str(t1) + '\n')
 
 pickle.dump(tlist,open('test.p','w'))
 

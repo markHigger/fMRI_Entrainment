@@ -7,7 +7,7 @@ source activate psypy
 cd /Users/jcloud/fmri_entrainment
 
 #run eyetracking calibration
-python eyetracking_initiation_calibration.py -subid '000'
+#python eyetracking_initiation_calibration.py -subid '000'
 
 #run study
 python docheck_stim_12hz_split.py -subid ‘000’ -tcpsec .1 -ntcpsec .1 -seconds 180
