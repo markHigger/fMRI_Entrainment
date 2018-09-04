@@ -1,24 +1,10 @@
-import psychopy.visual
-import numpy as np
-from psychopy import core, event, logging
-import pickle
-import argparse
-import sys 
-from os import path 
-from fractions import gcd
-import math
-from nki3Tbasics import *
-import pyxid
+# In[TODO]:
 
-#add triggers
-#keep track of triggers in separate file
-#trigger with critical stimuli 
+"""
+~send trigger (where?) with critical stimuli
+"""
 
-class MyParser(argparse.ArgumentParser):
-    def error(self, message):
-        sys.stderr.write('error: %s\n' % message)
-        self.print_help()
-        sys.exit(2)
+# In[Documentation]:
 
 """ Function Description
 to call :
@@ -52,63 +38,76 @@ Arguments:
         -resolution - Monitor dimensions in pixels (w, h) and width of screen in cm
             -default (2560,1600,33.782)
         -distance - Viewing distance from monitor in cm
-            -default = 46.
+            -default: 46.
+        -scan - True if in scanner
+            -default: False
+        -pulsekey - Pulse key for scanner
+            -default: 0
         
 """
-#true if in scanner
-inScanner = False
 
-###############################################################################
-#lcm function
+# In[Import - System and Math]:
 
+import numpy as np
+#import pickle
+import argparse
+import sys 
+import os 
+from fractions import gcd
+import math
+import random
+
+# In[Import - PsychoPy]:
+
+import psychopy.visual
+from psychopy import core, event#, logging
+
+# In[Import - PyGaze]:
+
+from pygaze.libinput import Keyboard
+import pygaze.libtime as timer
+from pygaze.libscreen import Display, Screen
+import pyxid
+from pygaze.eyetracker import EyeTracker
+
+# In[Import - Scanner]:
+
+import nki3Tbasics as b3T
+
+# In[Helper]:
+
+#finds least common multiple of a and b
 def lcm(a, b):
     return (a * b) / gcd(a,b)
-###############################################################################
-#Parse Inputs
+
+#waits for pulse key from scanner
+def waitForPulseKey(dev, timer, kb, pulseKey):
+    hasPulsed = False
+    while hasPulsed == False:
+        kPress = kb.get_key(keylist='q') # Allow clean escape by holding down 'q' key
+        if kPress[0] != None:
+            break
+        dev.poll_for_response()
+        if dev.response_queue_size() > 0:
+            response = dev.get_next_response()
+            if response['pressed'] == True and response['key'] == pulseKey:
+                hasPulsed = True
+                dev.con.flush_input()
+                return timer.get_time()
+
+# In[Initiate Parser]:
+
+class MyParser(argparse.ArgumentParser):
+    def error(self, message):
+        sys.stderr.write('error: %s\n' % message)
+        self.print_help()
+        sys.exit(2)
 
 parser = MyParser(prog="docheck_stim")
 
+#Run Settings
 parser.add_argument('-subid', dest='subid', 
                     help="Subject ID. (Required)", required=True)
-
-parser.add_argument('-seconds', dest='secs', 
-                    help="Approximate number of seconds you want the task to last (will be rounded up to generate full target cycle).", 
-                    default=60)
-
-parser.add_argument('-tside', dest='side', 
-                    help = 'What side the target should appear on', 
-                    default='r',type=str)
-
-#how fast the opacity changes/how often the dot appears
-parser.add_argument('-tcpsec', dest='tcps', 
-                    help='Cycles per second (hz)', 
-                    choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
-
-parser.add_argument('-ntcpsec', dest='ntcps',
-                    help='Cycles per second (hz)', 
-                    choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
-
-#how fast the flicker goes
-parser.add_argument('-tfpsec',dest='tfcps',
-                    help='Cycles per second (hz) of flicker', 
-                    default=12., type=float)
-
-parser.add_argument('-ntfpsec',dest='ntfcps',
-                    help='Cycles per second (hz) of non-target flicker',
-                    default=12.,type=float)
-
-#phase shift of non-target
-parser.add_argument('-phase',dest='ph',
-                    help='Degrees of shift of non-target',
-                    default=60, type=int)
-
-parser.add_argument('-refresh',dest='refresh',
-                    help='Refresh rate of monitor',
-                    default=60, type=int)
-
-parser.add_argument('-odd_rate',dest='orate',
-                    help='Rate of oddball appearance, where the int entered is the denominator',
-                    default = 5, type=int)
 
 parser.add_argument('-instruct',dest='ins',
                     help='True to show instructions before running',
@@ -126,48 +125,154 @@ parser.add_argument('-scan',dest='scanner',
                     help='True if in scanner',
                     default=False, type=bool)
 
+#Trial Settings
+parser.add_argument('-seconds', dest='secs', 
+                    help="Approximate number of seconds you want the task to last (will be rounded up to generate full target cycle).", 
+                    default=60)
+
+parser.add_argument('-tside', dest='side', 
+                    help = 'What side the target should appear on', 
+                    default='r',type=str)
+
+parser.add_argument('-tcpsec', dest='tcps', 
+                    help='Cycles per second (hz)', 
+                    choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
+
+parser.add_argument('-ntcpsec', dest='ntcps',
+                    help='Cycles per second (hz)', 
+                    choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
+
+parser.add_argument('-tfpsec',dest='tfcps',
+                    help='Cycles per second (hz) of flicker', 
+                    default=12., type=float)
+
+parser.add_argument('-ntfpsec',dest='ntfcps',
+                    help='Cycles per second (hz) of non-target flicker',
+                    default=12.,type=float)
+
+parser.add_argument('-phase',dest='ph',
+                    help='Degrees of shift of non-target',
+                    default=60, type=int)
+
+parser.add_argument('-refresh',dest='refresh',
+                    help='Refresh rate of monitor',
+                    default=60, type=int)
+
+parser.add_argument('-odd_rate',dest='orate',
+                    help='Rate of oddball appearance, where the int entered is the denominator',
+                    default = 5, type=int)
+
+parser.add_argument('-pulsekey', dest='pkey',
+                    help='Pulse key for scanner',
+                    default = 0)
+
+parser.add_argument('-tracker', dest='tracker',
+                    help='True if using eye tracker',
+                    default = False)
+
 args = parser.parse_args()
 
-#true if should show instructions
+# In[Global Vars From Args]:
+
+#instructions - show or not
 show_inst = args.ins
 inst_text = ['The experiment will begin shortly.',
 			"Once we begin, please",
 			"keep your eyes on the central gray cross."]
 
-psychopy.event.clearEvents()
-
-#get arguments
+#rate of target-side flicker
 tflicker = float(args.tfcps)
+
+#rate of nontarget-side flicker
 ntflicker = float(args.ntfcps)
+
+#how long the task will last
 seconds = float(args.secs)
+
+#rate of target-side oscillations
 tcps = args.tcps 
+
+#rate of nontarget-side oscillations
 ntcps = args.ntcps 
+
+#phase shift of nontarget-side
 phase_degrees = args.ph
 phase_radians = phase_degrees * (np.pi / 180)
+
+#rate of appearance of critical stimulus
 orate = args.orate
+
+#refresh rate
+refresh = args.refresh
+
+#to increase appearance of 'randomization', if oddball rate is too low, will
+#convert from 1 in oddball to 2 in (oddball * 2)
 if orate < 10:
     cycles = orate * 2
 else:
     cycles = orate
     
-#true if in scanner
+#scanner - in or out
 inScanner = args.scanner
 if inScanner:
-    dev = setupXID(pyxid)
-    
+    dev = b3T.setupXID(pyxid)
+
+#display resolution
 res = args.res
+
+#view distance
 dist = args.view_dist
-#find the distance in cm the two halfs should be apart
+
+#pulse key
+pkey = args.pkey
+
+#subject id
+subid = args.subid
+
+#valid response keys
+validKeys = [0,3]
+
+#eye tracker
+withTracker = args.tracker
+
+#find interstimulus distance, based on resolution and view distance, for 
+#4' viewing angle; since PsychoPy calculates distance on centerpoint, adding
+#128 (half of stimulus width)
 base_dist = (2 * dist * math.tan(math.radians(4)/2))
-#find the distance from center each half should be, in cm
 base_dist_half = base_dist / 2
-#convert cm to pixels
 pixpcm = res[0] / res[2]
-#convert base distance to pixels (add 128 to adjust for image size)
 base_dist_pix = int(base_dist_half * pixpcm) + 128
 
-###############################################################################
-#setup psychopy objects
+# In[Initiate PyGaze Objects]:
+
+kb = Keyboard()
+disp = Display()
+scr = Screen()
+if withTracker:
+    tracker = EyeTracker(disp)
+    
+# In[Tracker - Calibrate]:
+    
+if withTracker:
+    trackinst = open('trackerInstructions.text')
+    trackerInstructions = trackinst.read()
+    trackinst.close()
+    
+    scr.draw_text(text=trackerInstructions)
+    disp.fill(scr)
+    disp.show()
+    
+    kb.get_key(keylist = None, timeout = None, flush = True)
+    
+    tracker.calibrate()
+    
+    scr.clear()
+    disp.close()
+
+# In[Initiate PsychoPy Objects]:
+
+psychopy.event.clearEvents()
+
 win = psychopy.visual.Window(
     size=[res[0], res[1]],
     units="pix",
@@ -227,14 +332,16 @@ target_obj = psychopy.visual.Circle(
     lineColor=[-0.5, -0.5, -0.5],
     pos=(base_dist_pix / 2,0)
 	)
+
 if check_tar != 'r':
     target_obj.pos=(-50,0)
 
 event.Mouse(visible=False)
 
-##
-#Setup clock for timing
 clock = core.Clock()
+
+# In[Show Instructions]:
+
 if show_inst:
 	for txt in inst_text:
 		inst.text = txt
@@ -246,56 +353,66 @@ if show_inst:
 	fixate.draw()
 	win.flip()
     
-###############################################################################
-#Calculate Checkerboards
+# In[Calculate Checkerboards - Initiate Variables]:
 
-#Cut time into repeated blocks to allow for even divisibility by different freqs
+#find length of block that allows for full oscillations of target and non-target sides
 block_len = lcm((1/tcps),(1/ntcps)) * (cycles)
-#length of total video in s
-seconds += (seconds % block_len)
-#length of video in blocks
-block_num = int(seconds / block_len)
-#refresh rate
-refresh = args.refresh
 
-#used to calculate aount of cycles per block
+#determines if a block fits evenly into the trial duration; if not, generates new 
+#trial time that does fit a whole number of blocks
+seconds += (seconds % block_len)
+
+#finds the number of blocks in a trial
+block_num = int(seconds / block_len)
+
+#finds the number of oscillations per block
 tnum_pi = float(tcps) * block_len
 ntnum_pi = float(ntcps) * block_len
 
-#Calculate times where fade is calculated
+# In[Calculate Checkerboards - Generate Sine Wave]:
+
+#generate sine wave base
 SampleBase_target = np.linspace(0,tnum_pi * 2 * np.pi, (refresh*block_len))
 SampleBase_ntarget = np.linspace(0,ntnum_pi * 2 * np.pi, (refresh*block_len)) 
 
-#caclulate checkerboard fade
-# *Fade ranges from 0 to 1 in sin wave 
+#create sine wave
 targetFade_block = ((np.cos(SampleBase_target)* -1)+1) * 0.5
-targetFade_block  = (targetFade_block  * 0.96) + 0.02
 ntargetFade_block = ((np.cos(SampleBase_ntarget + phase_radians)* -1)+1) * 0.5
+
+#limit ceiling and floor of sine wave; shift above 0
+targetFade_block  = (targetFade_block  * 0.96) + 0.02
 ntargetFade_block = (ntargetFade_block * 0.96) + 0.02
 
+# In[Calculate Checkerboards - Generate Targets]:
 
-#find when to draw the target in each block
-#the target is drawn 
 t = np.zeros(SampleBase_target.shape)
 step = int((refresh*block_len) / (tnum_pi))
 step_flick = int(refresh * (1/tflicker))
 t[0::step] = 1
 t[step_flick::step] = -1
 
+# In[Calculate Checkerboards - Generate Flickers]:
+
+#generate target-side flicker
 target_side = np.zeros(SampleBase_target.shape)
 target_side_step = int((refresh*block_len) / (tflicker * block_len))
 target_side[0:-1:target_side_step] = 1
 
+#generate nontarget-side flicker
 ntarget_side = np.zeros(SampleBase_ntarget.shape)
 ntarget_side_step = int((refresh*block_len) / (ntflicker * block_len))
 ntarget_side[0:-1:ntarget_side_step] = 1
 
-#find fade values for the whole video by adding each block together
+# In[Calculate Checkerboards - Compile Whole Trial]:
+
+#initiate list variables
 targetFade = []
 ntargetFade = []
 draw_target = []
 targetFlicker = []
 ntargetFlicker = []
+
+#stack blocks into trial
 for block in range(block_num):
     targetFade.extend(targetFade_block)
     ntargetFade.extend(ntargetFade_block)
@@ -304,36 +421,41 @@ for block in range(block_num):
     
     copy_t = t.copy()
     mult = cycles // orate
+    x_list = range(cycles)
     for y in range(mult):
         l = 0
-        x = np.random.randint(0,(cycles)-1)
+        x = random.choice(x_list)
+        x_list.remove(x)
         copy_t[step*x] = 2
     draw_target.extend(copy_t)
     
+# In[Timing Debug]:
 
-#establishes flicker rate
-sl = 1/float(args.refresh) #.0833, or ~12Hz
-timing = [sl * trial for trial in range(len(targetFlicker))]
+sec_from_hz = 1/float(args.refresh)
+timing = [sec_from_hz * trial for trial in range(len(targetFlicker))]
+dur = np.ones(len(targetFade)) * sec_from_hz
 
-###############################################################################
-#Wait for pulse
+# In[Wait for Pulse]:
 
 if inScanner:
-    t0 = waitForPulse(dev)
+    timer.expstart()
     clock.reset()
+    t0 = waitForPulseKey(dev, timer, kb, pkey)
 else:
+    event.waitKeys(keyList=['space'])
+    timer.expstart()
     clock.reset()
-    t0 = clock.getTime()
+    t0 = timer.get_time()
+    
+# In[Tracker - Start]:
+    
+if withTracker:
+    tracker.start_recording()
+    tracker.status_msg("Pulse Received; Recording...")
+    #timer.pause(waitTime) why the pause here?
 
-##############################################################################
-#setup experiment
 
-#wait for user to press spacebar to start experiment
-waiting = True
-while waiting:
-	if event.getKeys(keyList=["space"]):
-		waiting = False
-clock.reset()
+# In[Initiate Trial Stimuli]:
 
 #draw fixate point, will not change throughout experiment
 fixate.size = 4
@@ -345,7 +467,7 @@ while clock.getTime() < 0.5:
 	pass
 clock.reset()
 
-#fixate point drawn again
+#fixate point drawn again, smaller
 fixate.size = 3
 fixate.draw()
 win.flip()
@@ -354,17 +476,21 @@ win.flip()
 tcon = 1
 ntcon = 1
 
-#create empty timing, target timing list
+# In[Initiate Trial Variables]
+
 tlist = []
 targetlist = []
 debug = []
+resplist = []
 t_onset = None
 t_offset = None
 d_onset = None
 d_offset = None
 t_crit = None
-###############################################################################
-#run experiment
+resp = None
+resp_time = None
+
+# In[Run Trial]:
 
 for frame in range(len(timing)):
     
@@ -409,62 +535,140 @@ for frame in range(len(timing)):
     if draw_target[frame] == 1 or draw_target[frame] == 2:
         t_onset = time
         d_onset = timing[frame]
+
     elif draw_target[frame] == -1:
         t_offset = time
         d_offset = timing[frame]
-            
+        
     if t_onset != None and t_offset != None:
         targetlist.append([t_onset,(t_offset-t_onset),t_crit])
         debug.append([t_onset,t_offset,(t_offset-t_onset),d_onset,d_offset,(d_offset-d_onset)])
         t_onset = None
         t_offset = None
+        
+    if inScanner:
+        dev.poll_for_response()
+        if dev.response_queue_size() > 0:
+            response = dev.get_next_response()
+            if response['pressed'] == True:
+                kv = response['key']
+                rt = timer.get_time()
+                if kv in validKeys:
+                    resp = 1
+                    resp_time = rt
+    else:
+        response = event.getKeys()
+        if 'space' in response:
+            resp = 1
+            resp_time = clock.getTime()
+    
+    resplist.append([resp,resp_time])
     
     #quit program and close window when esc is pressed
     if event.getKeys(keyList=["escape"]):
         win.close() 
         core.quit()
         
+    if inScanner:
+        dev.con.flush_input()
+    resp = 0
+    resp_time = 0
+        
 win.close()
 
+t1 = timer.get_time()
 
-###############################################################################
-#save timings in output file
+# In[Export Files - Variables and Folder Org]:
 
-t1 = clock.getTime()
-
-dur = np.ones(len(targetFade)) * sl # theoretical duration between frames
-
-#convert target fade rate to file-readable format
 cps_str = str(args.tcps).replace('.','_')
+basename = "{}_{}".format(subid, cps_str)
 
-#get output file name as <subjectid>_<target_rate>
-outname = "{}_{}.ons".format(args.subid, cps_str)
+direc_name = subid
+folder_name = cps_str
 
-#add + to file name if filename already exists
-while path.exists(outname) is True:
-	base = outname.split('.')[0]
-	outname = base+'+.ons'
+cwd = os.getcwd()
 
-#Write trigger_onset, trigger_duration, expected_onset, expected_duration
-#f = open(outname,'w')
-#for k in debug:
-#    f.write('{},{},{},{}\n'.format(k[0],k[2],k[3],k[5]))
-#f.close()
+if not os.path.exists(cwd + '/' + direc_name):
+    os.mkdir(cwd + '/' + direc_name)
+if not os.path.exists(cwd + '/' + direc_name + '/' + folder_name):
+    os.mkdir(cwd + '/' + direc_name + '/' + folder_name)
 
-#Feat format for triggers
-outname = outname.rstrip('.ons')
-f = open(outname+'_events.ons','w')
+os.chdir(cwd + '/' + direc_name + '/' + folder_name)
+
+while os.path.exists(basename + '.feat'):
+    basename = basename + '+'
+
+# In[Export Files - Trigger Feat]:
+
+f = open(basename + '.feat', 'w')
 for k in targetlist:
     f.write('{},{},{}\n'.format(k[0],k[1],k[2]))
 f.close()
 
-#Write to participant run log file, onset and offset time of run
-log_name = args.subid + '.log'
-f = open(log_name,'a')
-f.write(cps_str + ' time on: ' + str(t0))
-f.write(cps_str + ' time off: ' + str(t1) + '\n')
+# In[Export Files - Eyetracker Run Log]:
 
-pickle.dump(tlist,open('test.p','w'))
+f = open(basename + '.log', 'a')
+f.write(cps_str + ' time on: ' + str(t0))
+f.write(', time off: ' + str(t1) + '\n')
+f.close()
+
+# In[Export Files - Response QC Log]:
+
+count = 0
+crit = False
+target = False
+resp_acc = []
+tar = 0
+
+for frame in range(len(draw_target)):
+    if draw_target[frame] == 1:
+        crit = False
+        target = True
+        count = 0
+    elif draw_target[frame] == 2:
+        target = True
+        crit = True
+        count = 0
+    
+    if count < round(refresh * .75) and target:
+        if resplist[frame][0] == 1:
+            if crit:
+                resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,1])
+            else:
+                resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,0])
+            count = 0
+            target = False
+            tar += 1
+        else:
+            count += 1
+    elif target:
+        if crit:
+            resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,0])
+        else:
+            resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,1])
+        count = 0
+        target = False
+        tar += 1
+        
+f = open(basename + '_qc.log', 'w')
+f.write('Onset, Resp, Crit?, Acc\n')
+for k in resp_acc:
+    f.write('{},{},{},{}\n'.format(k[0],k[1],k[2],k[3]))
+f.close()
+
+# In[Debug - Target Onsets]: 
+
+#Write trigger_onset, trigger_duration, expected_onset, expected_duration
+#f = open(basename + '_debug.ons','w')
+#for k in debug:
+#    f.write('{},{},{},{}\n'.format(k[0],k[2],k[3],k[5]))
+#f.close()
+
+# In[Debug - Frame Onsets]:
+
+#pickle.dump(tlist,open('frame_onsets.txt','w'))
+
+
 
 
 
