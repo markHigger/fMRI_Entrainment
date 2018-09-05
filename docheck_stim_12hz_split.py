@@ -609,8 +609,7 @@ os.chdir(cwd + '/' + direc_name)
 # In[Export Files - Eyetracker Run Log]:
 
 f = open(direc_name + '.log', 'a')
-f.write(cps_str + ' time on: ' + str(t0))
-f.write(', time off: ' + str(t1) + '\n')
+f.write('{},{},{},{}\n'.format(wtype,cps_str,str(t0),str(t1)))
 f.close()
 
 # In[Folder Org P. 2]:
@@ -624,7 +623,7 @@ while os.path.exists(basename + '.feat'):
 
 f = open(basename + '.feat', 'w')
 for k in targetlist:
-    f.write('{},{},{}\n'.format(k[0],k[1],k[2]))
+    f.write('{}\t{}\t{}\n'.format(k[0],k[1],k[2]))
 f.close()
 
 # In[Export Files - Response QC Log]:
