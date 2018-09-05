@@ -396,16 +396,27 @@ ntargetFade_block = (ntargetFade_block * 0.96) + 0.02
     
 if wtype != 'sine':
     
+    t_box_step = int((refresh * block_len) / tnum_pi)
+    nt_box_step = int((refresh * block_len) / ntnum_pi)
+    t_box_step_half = int(t_box_step / 2)
+    nt_box_step_half = int(nt_box_step / 2)
+    
+    t = np.zeros(SampleBase_target.shape)
+    nt = np.zeros(SampleBase_ntarget.shape)
+    
+    t[0::t_box_step] = 1
+    t[t_box_step_half::t_box_step] = -1
+    nt[0::nt_box_step] = 1
+    nt[t_box_step_half::nt_box_step] = -1
+    
     on_val = .98
     off_val = .02
-    on_limit = .979
-    off_limit = .021
     on = False
     
     for x in range(len(targetFade_block)):
-        if targetFade_block[x] <= off_limit:
+        if t[x] == 1:
             on = False
-        elif targetFade_block[x] >= on_limit:
+        elif t[x] == -1:
             on = True
         if on:
             targetFade_block[x] = on_val
@@ -413,9 +424,9 @@ if wtype != 'sine':
             targetFade_block[x] = off_val
     
     for x in range(len(ntargetFade_block)):
-        if ntargetFade_block[x] <= off_limit:
+        if nt[x] == 1:
             on = False
-        elif ntargetFade_block[x] >= on_limit:
+        elif nt[x] == -1:
             on = True
         if on:
             ntargetFade_block[x] = on_val
