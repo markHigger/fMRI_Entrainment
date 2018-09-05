@@ -13,8 +13,6 @@ to call :
 Arguments:
     Required:
         -subid - id of subject
-        -seconds - aproxamate length of video in seconds (will round up to required val)
-            -default: 60s
         -tside - side target should apear on
             -default: right
         -tcpsec - Freq of target side checkerboard fading in Hz
@@ -29,20 +27,11 @@ Arguments:
             -default: 12.
         -phase - Degrees of shift for non-target side
             -default: 60
-        -refresh - The refresh rate of the monitor
-            -default: 60
         -odd_rate - The rate you want the critical target to appear
             -default: 5
-        -instruct - True if you want to show the instructions before running
-            -default: True
-        -resolution - Monitor dimensions in pixels (w, h) and width of screen in cm
-            -default (2560,1600,33.782)
-        -distance - Viewing distance from monitor in cm
-            -default: 46.
-        -scan - True if in scanner
-            -default: False
-        -pulsekey - Pulse key for scanner
-            -default: 0
+        -type - type of wave
+            -either: box, sine
+            -default: sine
         
 """
 
@@ -73,6 +62,7 @@ from pygaze.eyetracker import EyeTracker
 # In[Import - Scanner]:
 
 import nki3Tbasics as b3T
+import constants as cst
 
 # In[Helper]:
 
@@ -109,30 +99,11 @@ parser = MyParser(prog="docheck_stim")
 parser.add_argument('-subid', dest='subid', 
                     help="Subject ID. (Required)", required=True)
 
-parser.add_argument('-instruct',dest='ins',
-                    help='True to show instructions before running',
-                    default = True, type=bool)
-
-parser.add_argument('-resolution',dest='res',
-                    help='Monitor width, height, width in pixels, pixels, cm',
-                    default=(1440,900,33.782), type=tuple)
-
-parser.add_argument('-distance',dest='view_dist',
-                    help='Viewing distance from monitor',
-                    default = 46., type=float)
-
-parser.add_argument('-scan',dest='scanner',
-                    help='True if in scanner',
-                    default=False, type=bool)
-
 #Trial Settings
-parser.add_argument('-seconds', dest='secs', 
-                    help="Approximate number of seconds you want the task to last (will be rounded up to generate full target cycle).", 
-                    default=60)
-
 parser.add_argument('-tside', dest='side', 
                     help = 'What side the target should appear on', 
-                    default='r',type=str)
+                    default='r',choices=['r','l'],
+                    type=str)
 
 parser.add_argument('-tcpsec', dest='tcps', 
                     help='Cycles per second (hz)', 
@@ -154,21 +125,9 @@ parser.add_argument('-phase',dest='ph',
                     help='Degrees of shift of non-target',
                     default=60, type=int)
 
-parser.add_argument('-refresh',dest='refresh',
-                    help='Refresh rate of monitor',
-                    default=60, type=int)
-
 parser.add_argument('-odd_rate',dest='orate',
                     help='Rate of oddball appearance, where the int entered is the denominator',
                     default = 5, type=int)
-
-parser.add_argument('-pulsekey', dest='pkey',
-                    help='Pulse key for scanner',
-                    default = 0)
-
-parser.add_argument('-tracker', dest='tracker',
-                    help='True if using eye tracker',
-                    default = False)
 
 parser.add_argument('-type', dest='wtype',
                     help='Box or sine',
@@ -180,7 +139,7 @@ args = parser.parse_args()
 # In[Global Vars From Args]:
 
 #instructions - show or not
-show_inst = args.ins
+show_inst = cst.INSTRUCT
 inst_text = ['The experiment will begin shortly.',
 			"Once we begin, please",
 			"keep your eyes on the central gray cross."]
@@ -192,7 +151,7 @@ tflicker = float(args.tfcps)
 ntflicker = float(args.ntfcps)
 
 #how long the task will last
-seconds = float(args.secs)
+seconds = cst.SECONDS
 
 #rate of target-side oscillations
 tcps = args.tcps 
@@ -208,7 +167,7 @@ phase_radians = phase_degrees * (np.pi / 180)
 orate = args.orate
 
 #refresh rate
-refresh = args.refresh
+refresh = cst.REFRESH
 
 #to increase appearance of 'randomization', if oddball rate is too low, will
 #convert from 1 in oddball to 2 in (oddball * 2)
@@ -218,27 +177,27 @@ else:
     cycles = orate
     
 #scanner - in or out
-inScanner = args.scanner
+inScanner = cst.SCAN
 if inScanner:
     dev = b3T.setupXID(pyxid)
 
 #display resolution
-res = args.res
+res = (cst.DISPSIZE[0], cst.DISPSIZE[1], cst.SCREENSIZE[0])
 
 #view distance
-dist = args.view_dist
+dist = cst.SCREENDIST
 
 #pulse key
-pkey = args.pkey
+pkey = cst.PULSEKEY
 
 #subject id
 subid = args.subid
 
 #valid response keys
-validKeys = [0,3]
+validKeys = cst.VALIDKEYS
 
 #eye tracker
-withTracker = args.tracker
+withTracker = cst.TRACKER
 
 #wave type
 wtype = args.wtype
@@ -483,7 +442,7 @@ for block in range(block_num):
     
 # In[Timing Debug]:
 
-sec_from_hz = 1/float(args.refresh)
+sec_from_hz = 1/float(refresh)
 timing = [sec_from_hz * trial for trial in range(len(targetFlicker))]
 dur = np.ones(len(targetFade)) * sec_from_hz
 
@@ -636,7 +595,7 @@ cps_str = str(args.tcps).replace('.','_')
 basename = "{}_{}".format(subid, cps_str)
 
 direc_name = subid
-folder_name = cps_str
+folder_name = wtype + '_' + cps_str
 
 cwd = os.getcwd()
 
