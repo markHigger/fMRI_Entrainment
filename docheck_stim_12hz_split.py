@@ -170,6 +170,11 @@ parser.add_argument('-tracker', dest='tracker',
                     help='True if using eye tracker',
                     default = False)
 
+parser.add_argument('-type', dest='wtype',
+                    help='Box or sine',
+                    choices = ['box','sine'], default='sine',
+                    type=str)
+
 args = parser.parse_args()
 
 # In[Global Vars From Args]:
@@ -235,6 +240,9 @@ validKeys = [0,3]
 #eye tracker
 withTracker = args.tracker
 
+#wave type
+wtype = args.wtype
+
 #find interstimulus distance, based on resolution and view distance, for 
 #4' viewing angle; since PsychoPy calculates distance on centerpoint, adding
 #128 (half of stimulus width)
@@ -245,10 +253,10 @@ base_dist_pix = int(base_dist_half * pixpcm) + 128
 
 # In[Initiate PyGaze Objects]:
 
-kb = Keyboard()
-disp = Display()
-scr = Screen()
 if withTracker:
+    kb = Keyboard()
+    disp = Display()
+    scr = Screen()
     tracker = EyeTracker(disp)
     
 # In[Tracker - Calibrate]:
@@ -274,7 +282,7 @@ if withTracker:
 psychopy.event.clearEvents()
 
 win = psychopy.visual.Window(
-    size=[res[0], res[1]],
+    size=[res[0], res[1]], 
     units="pix",
     fullscr=True,
     waitBlanking=True
@@ -330,7 +338,7 @@ target_obj = psychopy.visual.Circle(
     radius=10,
     fillColor=[-0.125, -0.125, -0.125],
     lineColor=[-0.5, -0.5, -0.5],
-    pos=(base_dist_pix / 2,0)
+    pos=(round(base_dist_pix / 2.2),0)
 	)
 
 if check_tar != 'r':
@@ -383,6 +391,38 @@ ntargetFade_block = ((np.cos(SampleBase_ntarget + phase_radians)* -1)+1) * 0.5
 targetFade_block  = (targetFade_block  * 0.96) + 0.02
 ntargetFade_block = (ntargetFade_block * 0.96) + 0.02
 
+    
+# In[Calculate Checkerboards - Generate Box Wave]:
+    
+if wtype != 'sine':
+    
+    on_val = .98
+    off_val = .02
+    on_limit = .979
+    off_limit = .021
+    on = False
+    
+    for x in range(len(targetFade_block)):
+        if targetFade_block[x] <= off_limit:
+            on = False
+        elif targetFade_block[x] >= on_limit:
+            on = True
+        if on:
+            targetFade_block[x] = on_val
+        else:
+            targetFade_block[x] = off_val
+    
+    for x in range(len(ntargetFade_block)):
+        if ntargetFade_block[x] <= off_limit:
+            on = False
+        elif ntargetFade_block[x] >= on_limit:
+            on = True
+        if on:
+            ntargetFade_block[x] = on_val
+        else:
+            ntargetFade_block[x] = off_val
+        
+
 # In[Calculate Checkerboards - Generate Targets]:
 
 t = np.zeros(SampleBase_target.shape)
@@ -422,6 +462,7 @@ for block in range(block_num):
     copy_t = t.copy()
     mult = cycles // orate
     x_list = range(cycles)
+    x_list.remove(0)
     for y in range(mult):
         l = 0
         x = random.choice(x_list)
@@ -458,7 +499,7 @@ if withTracker:
 # In[Initiate Trial Stimuli]:
 
 #draw fixate point, will not change throughout experiment
-fixate.size = 4
+fixate.size = 5
 fixate.draw()
 win.flip()
 
@@ -492,7 +533,12 @@ resp_time = None
 
 # In[Run Trial]:
 
+cont = True
+
 for frame in range(len(timing)):
+    
+    if not cont:
+        break
     
     #set alternating contrast on both checkerboards
     if targetFlicker[frame] == 1:
@@ -518,7 +564,7 @@ for frame in range(len(timing)):
         t_crit = 0
     elif draw_target[frame] == 2:
         target_obj.setOpacity(1)
-        target_obj.fillColor = [0,0,0]
+        target_obj.fillColor = [.2,.2,.2]
         t_crit = 1
     elif draw_target[frame] == -1:
         target_obj.setOpacity(0)
@@ -561,20 +607,15 @@ for frame in range(len(timing)):
         if 'space' in response:
             resp = 1
             resp_time = clock.getTime()
+        if 'escape' in response:
+            cont = False
     
     resplist.append([resp,resp_time])
-    
-    #quit program and close window when esc is pressed
-    if event.getKeys(keyList=["escape"]):
-        win.close() 
-        core.quit()
         
     if inScanner:
         dev.con.flush_input()
     resp = 0
     resp_time = 0
-        
-win.close()
 
 t1 = timer.get_time()
 
@@ -592,6 +633,17 @@ if not os.path.exists(cwd + '/' + direc_name):
     os.mkdir(cwd + '/' + direc_name)
 if not os.path.exists(cwd + '/' + direc_name + '/' + folder_name):
     os.mkdir(cwd + '/' + direc_name + '/' + folder_name)
+    
+os.chdir(cwd + '/' + direc_name)
+
+# In[Export Files - Eyetracker Run Log]:
+
+f = open(direc_name + '.log', 'a')
+f.write(cps_str + ' time on: ' + str(t0))
+f.write(', time off: ' + str(t1) + '\n')
+f.close()
+
+# In[Folder Org P. 2]:
 
 os.chdir(cwd + '/' + direc_name + '/' + folder_name)
 
@@ -603,13 +655,6 @@ while os.path.exists(basename + '.feat'):
 f = open(basename + '.feat', 'w')
 for k in targetlist:
     f.write('{},{},{}\n'.format(k[0],k[1],k[2]))
-f.close()
-
-# In[Export Files - Eyetracker Run Log]:
-
-f = open(basename + '.log', 'a')
-f.write(cps_str + ' time on: ' + str(t0))
-f.write(', time off: ' + str(t1) + '\n')
 f.close()
 
 # In[Export Files - Response QC Log]:
@@ -631,16 +676,20 @@ for frame in range(len(draw_target)):
         count = 0
     
     if count < round(refresh * .75) and target:
-        if resplist[frame][0] == 1:
-            if crit:
-                resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,1])
+        try:
+            if resplist[frame][0] == 1:
+                if crit:
+                    resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,1])
+                else:
+                    resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,0])
+                count = 0
+                target = False
+                tar += 1
             else:
-                resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,0])
-            count = 0
-            target = False
-            tar += 1
-        else:
-            count += 1
+                count += 1
+        except (IndexError):
+            pass
+        
     elif target:
         if crit:
             resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,0])
@@ -667,6 +716,10 @@ f.close()
 # In[Debug - Frame Onsets]:
 
 #pickle.dump(tlist,open('frame_onsets.txt','w'))
+
+# In[Exit]:
+
+win.close()
 
 
 
