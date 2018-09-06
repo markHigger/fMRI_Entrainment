@@ -1,8 +1,4 @@
-# In[TODO]:
 
-"""
-~send trigger (where?) with critical stimuli
-"""
 
 # In[Documentation]:
 
@@ -631,12 +627,18 @@ if not os.path.exists(cwd + '/' + direc_name):
 if not os.path.exists(cwd + '/' + direc_name + '/' + folder_name):
     os.mkdir(cwd + '/' + direc_name + '/' + folder_name)
     
+# In[Edit Run Count]:
+    
+f = open('run.py','w')
+f.write('RUN = ' + str(run + 1))
+f.close()
+    
 os.chdir(cwd + '/' + direc_name)
 
 # In[Export Files - Eyetracker Run Log]:
 
 f = open(direc_name + '.log', 'a')
-f.write('{},{},{},{}\n'.format(wtype,cps_str,abort,str(t0),str(t1)))
+f.write('{},{},{},{},{}\n'.format(str(run),wtype,cps_str,abort,str(t0),str(t1)))
 f.close()
 
 # In[Folder Org P. 2]:
