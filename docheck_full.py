@@ -38,7 +38,7 @@ Arguments:
 # In[Import - System and Math]:
 
 import numpy as np
-#import pickle
+import pickle
 import argparse
 import sys 
 import os 
@@ -406,21 +406,26 @@ if wtype != 'sine':
 
 t = np.zeros(SampleBase_target.shape)
 step = int((refresh*block_len) / (tnum_pi))
-step_flick = int(refresh * (1/tflicker))
+flicker_time = int(refresh * (1/tflicker))
 t[0::step] = 1
-t[step_flick::step] = -1
+target_minimal = t.copy()
+target_minimal[flicker_time::step] = -1
+for x in range(flicker_time):
+    t[0+x::step] = 1
+
 
 # In[Calculate Checkerboards - Generate Flickers]:
 
 #generate target-side flicker
 target_side = np.zeros(SampleBase_target.shape)
-target_side_step = int((refresh*block_len) / (tflicker * block_len))
-target_side[0:-1:target_side_step] = 1
+for x in range(flicker_time):
+    target_side[0+x::flicker_time*2] = 1
 
 #generate nontarget-side flicker
 ntarget_side = np.zeros(SampleBase_ntarget.shape)
-ntarget_side_step = int((refresh*block_len) / (ntflicker * block_len))
-ntarget_side[0:-1:ntarget_side_step] = 1
+n_flicker_time = int(refresh * (1/ntflicker))
+for x in range(n_flicker_time):
+    ntarget_side[0+x::n_flicker_time * 2] = 1
 
 # In[Calculate Checkerboards - Compile Whole Trial]:
 
@@ -430,6 +435,7 @@ ntargetFade = []
 draw_target = []
 targetFlicker = []
 ntargetFlicker = []
+draw_target_min = []
 
 #stack blocks into trial
 for block in range(block_num):
@@ -439,15 +445,19 @@ for block in range(block_num):
     ntargetFlicker.extend(ntarget_side)
     
     copy_t = t.copy()
+    copy_t_min = target_minimal.copy()
     mult = cycles // orate
     x_list = range(cycles)
     x_list.remove(0)
     for y in range(mult):
         l = 0
-        x = random.choice(x_list)
-        x_list.remove(x)
-        copy_t[step*x] = 2
+        x_choice = random.choice(x_list)
+        x_list.remove(x_choice)
+        copy_t_min[step*x_choice] = 2
+        for x in range(flicker_time):
+            copy_t[(step*x_choice) + x] = 2
     draw_target.extend(copy_t)
+    draw_target_min.extend(copy_t_min)
     
 # In[Timing Debug]:
 
@@ -492,10 +502,6 @@ fixate.size = 3
 fixate.draw()
 win.flip()
 
-#set starting checkerboard contrast to 1
-tcon = 1
-ntcon = 1
-
 # In[Initiate Trial Variables]
 
 tlist = []
@@ -509,6 +515,7 @@ d_offset = None
 t_crit = None
 resp = None
 resp_time = None
+debug = {}
 
 # In[Run Trial]:
 
@@ -516,16 +523,25 @@ cont = True
 
 for frame in timing:
     
+    debug[frame] = []
+    debug[frame].append(clock.getTime())
+    debug[frame].append(find_nearest_val(timing,clock.getTime()))
+    
     if not cont:
         break
     
     #set alternating contrast on both checkerboards
     if targetFlicker[find_nearest_idx(timing,clock.getTime())] == 1:
-        timg.contrast = tcon
-        tcon *= -1
+        timg.contrast = 1
+    else:
+        timg.contrast = -1
     if ntargetFlicker[find_nearest_idx(timing,clock.getTime())] == 1:
-        ntimg.contrast = ntcon
-        ntcon *= -1
+        ntimg.contrast = 1
+    else:
+        ntimg.contrast = -1
+        
+    debug[frame].append(timg.contrast)
+    debug[frame].append(ntimg.contrast)
     
     #set opacity to fade
     timg.setOpacity(targetFade[find_nearest_idx(timing,clock.getTime())])
@@ -537,6 +553,7 @@ for frame in timing:
     
     #Draw target at given times, this should occur every time the fade finishes
     #   an occilation
+    t_timing = clock.getTime()
     if draw_target[find_nearest_idx(timing,clock.getTime())] == 1:
         target_obj.setOpacity(1)
         target_obj.fillColor = [-.25,-.25,-.25]
@@ -545,31 +562,41 @@ for frame in timing:
         target_obj.setOpacity(1)
         target_obj.fillColor = [.2,.2,.2]
         t_crit = 1
-    elif draw_target[find_nearest_idx(timing,clock.getTime())] == -1:
+    elif draw_target[find_nearest_idx(timing,clock.getTime())] == 0:
         target_obj.setOpacity(0)
     target_obj.draw()
+    debug[frame].append(draw_target[find_nearest_idx(timing,clock.getTime())])
+    
+    debug[frame].append(t_crit)
     
     #redraw fixation point
     fixate.draw()
     
     #write to screen and record time written
+    while clock.getTime() < frame:
+        pass
     win.flip()
     time = clock.getTime()
-    tlist.append(time)
+    debug[frame].append(time)
     
-    if draw_target[find_nearest_idx(timing,clock.getTime())] == 1 or draw_target[find_nearest_idx(timing,clock.getTime())] == 2:
+    if t_onset == None and d_onset == None and (draw_target[find_nearest_idx(timing,t_timing)] == 1 or draw_target[find_nearest_idx(timing,t_timing)] == 2):
         t_onset = time
         d_onset = frame
+        debug[frame].append(t_onset)
 
-    elif draw_target[find_nearest_idx(timing,clock.getTime())] == -1:
+    elif t_offset == None and d_offset == None and t_onset != None and draw_target[find_nearest_idx(timing,t_timing)] == 0:
         t_offset = time
         d_offset = frame
+        debug[frame].append(t_offset)
         
     if t_onset != None and t_offset != None:
         targetlist.append([t_onset,(t_offset-t_onset),t_crit])
-        debug.append([t_onset,t_offset,(t_offset-t_onset),d_onset,d_offset,(d_offset-d_onset)])
+        debug[frame].append([t_onset,t_offset,(t_offset-t_onset),d_onset,d_offset,(d_offset-d_onset)])
         t_onset = None
         t_offset = None
+        d_onset = None
+        d_offset = None
+        debug[frame].append('target off')
 
     response = event.getKeys()
     if 'space' in response:
@@ -631,11 +658,11 @@ resp_acc = []
 tar = 0
 
 for frame in range(len(draw_target)):
-    if draw_target[frame] == 1:
+    if draw_target_min[frame] == 1:
         crit = False
         target = True
         count = 0
-    elif draw_target[frame] == 2:
+    elif draw_target_min[frame] == 2:
         target = True
         crit = True
         count = 0
@@ -681,9 +708,9 @@ f.close()
 #    f.write('{},{},{},{}\n'.format(k[0],k[2],k[3],k[5]))
 #f.close()
 
-# In[Debug - Frame Onsets]:
+# In[Debug - Frame By Frame]:
 
-#pickle.dump(tlist,open('frame_onsets.txt','w'))
+pickle.dump(debug,open('frame_onsets.txt','w'))
 
 # In[Exit]:
 
