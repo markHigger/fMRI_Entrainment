@@ -63,6 +63,7 @@ from pygaze.eyetracker import EyeTracker
 
 import nki3Tbasics as b3T
 import constants as cst
+import run as r
 
 # In[Helper]:
 
@@ -102,11 +103,11 @@ parser.add_argument('-tside', dest='side',
 
 parser.add_argument('-tcpsec', dest='tcps', 
                     help='Cycles per second (hz)', 
-                    choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
+                    choices=[0.1, .125, 0.2, .25, 0.5, 1.0], default=0.5, type=float)
 
 parser.add_argument('-ntcpsec', dest='ntcps',
                     help='Cycles per second (hz)', 
-                    choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
+                    choices=[0.1, .125, 0.2, .25, 0.5, 1.0], default=0.5, type=float)
 
 parser.add_argument('-tfpsec',dest='tfcps',
                     help='Cycles per second (hz) of flicker', 
@@ -197,6 +198,8 @@ withTracker = cst.TRACKER
 #wave type
 wtype = args.wtype
 
+run = r.RUN
+
 #find interstimulus distance, based on resolution and view distance, for 
 #4' viewing angle; since PsychoPy calculates distance on centerpoint, adding
 #128 (half of stimulus width)
@@ -215,7 +218,7 @@ if withTracker:
     
 # In[Tracker - Calibrate]:
     
-if withTracker:
+if withTracker and run == 0:
     trackinst = open('trackerInstructions.text')
     trackerInstructions = trackinst.read()
     trackinst.close()
@@ -231,6 +234,10 @@ if withTracker:
     scr.clear()
     disp.close()
 
+elif withTracker:
+    scr.clear()
+    disp.close()
+    
 # In[Initiate PsychoPy Objects]:
 
 psychopy.event.clearEvents()
@@ -299,7 +306,8 @@ if check_tar != 'r':
 
 event.Mouse(visible=False)
 
-clock = core.Clock()
+fmri_clock = core.Clock()
+task_clock = core.Clock()
 
 # In[Show Instructions]:
 
@@ -308,8 +316,8 @@ if show_inst:
 		inst.text = txt
 		inst.draw()
 		win.flip()
-		clock.reset()
-		while clock.getTime() < 2:
+		fmri_clock.reset()
+        while fmri_clock.getTime() < 2:
 			pass
 	fixate.draw()
 	win.flip()
@@ -453,14 +461,15 @@ dur = np.ones(len(targetFade)) * sec_from_hz
 # In[Wait for Pulse]:
 
 if inScanner:
+    event.waitKeys(keyList=['0'])
     timer.expstart()
-    clock.reset()
-    t0 = waitForPulseKey(dev, timer, kb, pkey)
+    fmri_clock.reset()
+    t0 = fmri_clock.reset()
 else:
     event.waitKeys(keyList=['space'])
     timer.expstart()
-    clock.reset()
-    t0 = timer.get_time()
+    fmri_clock.reset()
+    t0 = fmri_clock.reset()
     
 # In[Tracker - Start]:
     
@@ -478,7 +487,7 @@ fixate.draw()
 win.flip()
 
 #wait half a second before starting 
-while clock.getTime() < 0.2:
+while fmri_clock.getTime() < 0.5:
 	pass
 
 #fixate point drawn again, smaller
@@ -506,24 +515,24 @@ abort = False
 
 cont = True
 
-clock.reset()
+task_clock.reset()
 
 for frame in timing:
     
     debug_frame = []
     
-    debug_frame.append(clock.getTime())
-    debug_frame.append(find_nearest_val(timing,clock.getTime()))
+    debug_frame.append(task_clock.getTime())
+    debug_frame.append(find_nearest_val(timing,task_clock.getTime()))
     
     if not cont:
         break
     
     #set alternating contrast on both checkerboards
-    if targetFlicker[find_nearest_idx(timing,clock.getTime())] == 1:
+    if targetFlicker[find_nearest_idx(timing,task_clock.getTime())] == 1:
         timg.contrast = 1
     else:
         timg.contrast = -1
-    if ntargetFlicker[find_nearest_idx(timing,clock.getTime())] == 1:
+    if ntargetFlicker[find_nearest_idx(timing,task_clock.getTime())] == 1:
         ntimg.contrast = 1
     else:
         ntimg.contrast = -1
@@ -532,8 +541,8 @@ for frame in timing:
     debug_frame.append(ntimg.contrast)
     
     #set opacity to fade
-    timg.setOpacity(targetFade[find_nearest_idx(timing,clock.getTime())])
-    ntimg.setOpacity(ntargetFade[find_nearest_idx(timing,clock.getTime())])
+    timg.setOpacity(targetFade[find_nearest_idx(timing,task_clock.getTime())])
+    ntimg.setOpacity(ntargetFade[find_nearest_idx(timing,task_clock.getTime())])
     
     #draw checkerboards
     timg.draw()
@@ -541,29 +550,29 @@ for frame in timing:
     
     #Draw target at given times, this should occur every time the fade finishes
     #   an occilation
-    t_timing = clock.getTime()
-    if draw_target[find_nearest_idx(timing,clock.getTime())] == 1:
+    t_timing = task_clock.getTime()
+    if draw_target[find_nearest_idx(timing,task_clock.getTime())] == 1:
         target_obj.setOpacity(1)
         target_obj.fillColor = [-.25,-.25,-.25]
         t_crit = 0
-    elif draw_target[find_nearest_idx(timing,clock.getTime())] == 2:
+    elif draw_target[find_nearest_idx(timing,task_clock.getTime())] == 2:
         target_obj.setOpacity(1)
         target_obj.fillColor = [.2,.2,.2]
         t_crit = 1
-    elif draw_target[find_nearest_idx(timing,clock.getTime())] == 0:
+    elif draw_target[find_nearest_idx(timing,task_clock.getTime())] == 0:
         target_obj.setOpacity(0)
     target_obj.draw()
-    debug_frame.append(draw_target[find_nearest_idx(timing,clock.getTime())])
+    debug_frame.append(draw_target[find_nearest_idx(timing,task_clock.getTime())])
     
     #redraw fixation point
     fixate.draw()
     
     #write to screen and record time written
-    while clock.getTime() < frame:
+    while task_clock.getTime() < frame:
         pass
     win.flip()
-    time = clock.getTime()
-    debug_frame.append(time)
+    time = fmri_clock.getTime()
+    debug_frame.append(task_clock.getTime())
     
     if t_onset == None and d_onset == None and (draw_target[find_nearest_idx(timing,t_timing)] == 1 or draw_target[find_nearest_idx(timing,t_timing)] == 2):
         t_onset = time
@@ -591,7 +600,7 @@ for frame in timing:
     response = event.getKeys()
     if 'space' in response:
         resp = 1
-        resp_time = clock.getTime()
+        resp_time = fmri_clock.getTime()
     if 'escape' in response:
         abort = True
         cont = False
@@ -603,7 +612,7 @@ for frame in timing:
     
     debug.append(debug_frame)
 
-t1 = timer.get_time()
+t1 = fmri_clock.getTime()
 
 # In[Export Files - Variables and Folder Org]:
 
