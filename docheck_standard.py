@@ -130,9 +130,9 @@ pixpcm = res[0] / res[2]
 base_dist_pix = int(base_dist_half * pixpcm) + 128
 
 # In[Initiate PyGaze Objects]:
+kb = Keyboard()
 
 if withTracker:
-    kb = Keyboard()
     disp = Display()
     scr = Screen()
     tracker = EyeTracker(disp)
@@ -214,14 +214,14 @@ task_clock = core.Clock()
 
 # In[Show Instructions]:
 
-if show_inst:
-	for txt in inst_text:
-		inst.text = txt
-		inst.draw()
-		win.flip()
-        	core.wait(2)
-	fixate.draw()
-	win.flip()
+#if show_inst:
+	#for txt in inst_text:
+		#inst.text = txt
+		#inst.draw()
+		#win.flip()
+        	#core.wait(2)
+fixate.draw()
+win.flip()
     
 # In[Calculate Checkerboards - Initiate Variables]:
 
@@ -258,7 +258,7 @@ timing = [sec_from_hz * trial for trial in range(len(flicker_block))]
 # In[Wait for Pulse]:
 
 if inScanner:
-    event.waitKeys(keyList=['0'])
+    b3T.waitForPulseKey(dev,timer,kb,pkey)
     timer.expstart()
     fmri_clock.reset()
     t0 = fmri_clock.reset()

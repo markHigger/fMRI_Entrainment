@@ -115,7 +115,7 @@ parser.add_argument('-ntfpsec',dest='ntfcps',
 
 parser.add_argument('-phase',dest='ph',
                     help='Degrees of shift of non-target',
-                    default=60, type=int)
+                    default=0, type=int)
 
 parser.add_argument('-odd_rate',dest='orate',
                     help='Rate of oddball appearance, where the int entered is the denominator',
@@ -135,6 +135,7 @@ show_inst = cst.INSTRUCT
 inst_text = ['The experiment will begin shortly.',
 			"Once we begin, please",
 			"keep your eyes on the central gray cross."]
+#inst_text = 'The experiment will begin shortly. Once we begin, please keep your eyes on the central gray cross.'
 
 #rate of target-side flicker
 tflicker = float(args.tfcps)
@@ -205,9 +206,9 @@ pixpcm = res[0] / res[2]
 base_dist_pix = int(base_dist_half * pixpcm) + 128
 
 # In[Initiate PyGaze Objects]:
+kb = Keyboard()
 
 if withTracker:
-    kb = Keyboard()
     disp = Display()
     scr = Screen()
     tracker = EyeTracker(disp)
@@ -242,7 +243,8 @@ win = psychopy.visual.Window(
     size=[res[0], res[1]], 
     units="pix",
     fullscr=True,
-    waitBlanking=True
+    waitBlanking=True,
+    colorSpace = 'rgb'
 )
     
 timg = psychopy.visual.ImageStim(
@@ -283,7 +285,7 @@ fixate = psychopy.visual.ShapeStim(
 
 inst = psychopy.visual.TextStim(
 	win=win,
-	text='',
+	text=inst_text,
 	height=50.
 
 )
@@ -307,16 +309,15 @@ task_clock = core.Clock()
 
 # In[Show Instructions]:
 
-if show_inst:
-	for txt in inst_text:
-		inst.text = txt
-		inst.draw()
-		win.flip()
-		fmri_clock.reset()
-        	while fmri_clock.getTime() < 2:
-			pass
-	fixate.draw()
-	win.flip()
+#for txt in inst_text:
+	#inst.text = txt
+	#inst.draw()
+	#win.flip()
+	#fmri_clock.reset()
+       # while fmri_clock.getTime() < 2:
+		#pass
+fixate.draw()
+win.flip()
     
 # In[Calculate Checkerboards - Initiate Variables]:
 
@@ -453,11 +454,12 @@ for block in range(block_num):
 sec_from_hz = 1/float(refresh)
 timing = [sec_from_hz * trial for trial in range(len(targetFlicker))]
 dur = np.ones(len(targetFade)) * sec_from_hz
+t
 
 # In[Wait for Pulse]:
 
 if inScanner:
-    event.waitKeys(keyList=['0'])
+    b3T.waitForPulseKey(dev,timer,kb,pkey)
     timer.expstart()
     fmri_clock.reset()
     t0 = fmri_clock.reset()
@@ -529,20 +531,22 @@ for frame in timing:
     
     #set alternating contrast on both checkerboards
     if targetFlicker[find_nearest_idx(timing,task_clock.getTime())] == 1:
-        timg.contrast = 1
+        timg.contrast = .8
+	ntimg.contrast = .8
     else:
-        timg.contrast = -1
-    if ntargetFlicker[find_nearest_idx(timing,task_clock.getTime())] == 1:
-        ntimg.contrast = 1
-    else:
-        ntimg.contrast = -1
+        timg.contrast = -.8
+	ntimg.contrast = -.8
+    #if ntargetFlicker[find_nearest_idx(timing,task_clock.getTime())] == 1:
+        #ntimg.contrast = 1
+    #else:
+        #ntimg.contrast = -1
         
     debug_frame.append(timg.contrast)
     debug_frame.append(ntimg.contrast)
     
     #set opacity to fade
     timg.setOpacity(targetFade[find_nearest_idx(timing,task_clock.getTime())])
-    ntimg.setOpacity(ntargetFade[find_nearest_idx(timing,task_clock.getTime())])
+    ntimg.setOpacity(targetFade[find_nearest_idx(timing,task_clock.getTime())])
     
     #draw checkerboards
     timg.draw()
