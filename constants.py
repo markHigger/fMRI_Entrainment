@@ -21,14 +21,14 @@ Created on Wed Sep  5 12:36:24 2018
 #TRACKER = False
 #PULSEKEY = 0
 #VALIDKEYS = [0,3]
-#CYCLES = 5
+#CYCLES = 7
 
 # In[Screen Parameters - TEST]:
 
 DISPSIZE = (1440,900)
 SCREENSIZE = (33.782, 0)
 SCREENDIST = 46.0
-REFRESH = 70
+REFRESH = 60
 
 # In[Experiment Parameters - TEST]:
 
@@ -38,4 +38,4 @@ SECONDS = 60
 TRACKER = False
 PULSEKEY = 0
 VALIDKEYS = [0,3]
-CYCLES = 3
+CYCLES = 2

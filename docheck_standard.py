@@ -1,8 +1,4 @@
-# In[TODO]:
-
-"""
-~send trigger (where?) with critical stimuli
-"""
+#TODO: Why is the timing off when pausing? 
 
 # In[Documentation]:
 
@@ -27,7 +23,7 @@ import sys
 import os 
 from fractions import gcd
 import math
-import time
+import time as tim
 
 # In[Import - PsychoPy]:
 
@@ -178,14 +174,16 @@ timg = psychopy.visual.ImageStim(
     win=win,
     image="right.png",
     units="pix",
-    pos = (base_dist_pix, 0)
+    pos = (base_dist_pix, 0),
+    opacity = 0
 )
 
 ntimg = psychopy.visual.ImageStim(
     win=win,
     image="left.png",
     units="pix",
-    pos = (base_dist_pix * -1,0)
+    pos = (base_dist_pix * -1,0),
+    opacity = 0
 )
 
 fixate = psychopy.visual.ShapeStim(
@@ -221,7 +219,7 @@ if show_inst:
 		inst.text = txt
 		inst.draw()
 		win.flip()
-        	time.sleep(2)
+        	core.wait(2)
 	fixate.draw()
 	win.flip()
     
@@ -238,22 +236,24 @@ flicker_time = int(refresh * (1/flicker))
 flicker_cycle = np.ones(cycle_size)
 for x in range(flicker_time):
     flicker_cycle[0+x::flicker_time*2] = -1
-null = np.zeros(cycle_size)
+swap = cycle_size
+flicker_cycle[-1] = 2
+null_cycle = np.ones(len(flicker_cycle))
+null_cycle[-1] = 2
+
 
 # In[Calculate Checkerboards - Compile Whole Trial]:
 
-#initiate list variables
-flicker_list = []
+flicker_block = []
 
-#stack blocks into trial
-for block in range(cycles):
-    flicker_list.extend(flicker_cycle)
-    flicker_list.extend(null)
+for x in range(cycles):
+    flicker_block.extend(null_cycle)
+    flicker_block.extend(flicker_cycle)
     
 # In[Timing Debug]:
 
 sec_from_hz = 1/float(refresh)
-timing = [sec_from_hz * trial for trial in range(len(flicker_list))]
+timing = [sec_from_hz * trial for trial in range(len(flicker_block))]
 
 # In[Wait for Pulse]:
 
@@ -297,10 +297,13 @@ win.flip()
 debug = []
 flick = []
 fix = []
-cycle_type = None
+swap_bool = None
 s_onset = None
 s_offset = None
+f_onset = None
+f_offset = None
 abort = False
+flick_cycle = False
 
 # In[Run Trial]:
 
@@ -319,20 +322,20 @@ for frame in timing:
         break
     
     #set alternating contrast on both checkerboards
-    if flicker_list[find_nearest_idx(timing,task_clock.getTime())] == 1:
+    if flicker_block[find_nearest_idx(timing,task_clock.getTime())] == 1:
         timg.contrast = 1
         ntimg.contrast = 1
-        cycle_type = 'f'
-    elif flicker_list[find_nearest_idx(timing,task_clock.getTime())] == -1:
+        swap_bool = False
+    elif flicker_block[find_nearest_idx(timing,task_clock.getTime())] == -1:
         timg.contrast = -1
         ntimg.contrast = -1
-        cycle_type = 'f'
-    else:
-        timg.contrast = 1
-        ntimg.contrast = 1
-        cycle_type = 's'
+        swap_bool = False
+    elif flicker_block[find_nearest_idx(timing,task_clock.getTime())] == 2:
+        swap_bool = True
         
+    debug_frame.append(swap_bool)
     debug_frame.append(timg.contrast)
+    debug_frame.append(flick_cycle)
     
     #draw checkerboards
     timg.draw()
@@ -348,22 +351,24 @@ for frame in timing:
     time = fmri_clock.getTime()
     debug_frame.append(task_clock.getTime())
     
-    if cycle_type == 'f' and s_onset == None:
+    if flick_cycle and f_onset == None:
+        f_onset = time
+        timg.setOpacity(1)
+        ntimg.setOpacity(1)
+    elif swap_bool and flick_cycle:
+        f_offset = time
+        flick_cycle = not flick_cycle
+        flick.append([f_onset, (f_offset-f_onset), 1])
+        f_onset = None
+        f_offset = None
+    elif (not flick_cycle) and s_onset == None:
         s_onset = time
-        debug_frame.append('flicker on')
-    elif cycle_type == 's' and s_onset != None and s_offset == None:
+        timg.setOpacity(0)
+        ntimg.setOpacity(0)
+    elif (not flick_cycle) and swap_bool:
         s_offset = time
-        flick.append([s_onset, (s_offset-s_onset), 1])
-        debug_frame.append([s_onset, (s_offset-s_onset), 1])
-        s_onset = None
-        s_offset = None
-    elif cycle_type == 's' and s_onset == None:
-        s_onset = time
-        debug_frame.append('fix on')
-    elif cycle_type == 'f' and s_onset != None and s_offset == None:
-        s_offset = time
-        fix.append([s_onset, (s_offset-s_onset), 1])
-        debug_frame.append([s_onset, (s_offset-s_onset), 1])
+        flick_cycle = not flick_cycle
+        flick.append([s_onset, (s_offset - s_onset), 0])
         s_onset = None
         s_offset = None
 
@@ -378,7 +383,6 @@ timg.setOpacity(0)
 ntimg.setOpacity(0)
 timg.draw()
 ntimg.draw()
-fixate.draw()
 win.flip()
 event.waitKeys(keyList=['space'])
 
@@ -414,7 +418,7 @@ os.chdir(cwd + '/' + direc_name)
 # In[Export Files - Eyetracker Run Log]:
 
 f = open(direc_name + '.log', 'a')
-f.write('{},{},{},{}\n'.format('standard',fps_str,abort,str(t0),str(t1)))
+f.write('{},{},{},{},{},{}\n'.format(str(run),'standard',fps_str,abort,str(t0),str(t1)))
 f.close()
 
 # In[Folder Org Pt. 3]:
@@ -427,19 +431,14 @@ while os.path.exists(basename + '_flicker.feat'):
 # In[Export Files - Flicker/Fix Feat]:
 
 f = open(basename + '_flicker.feat', 'w')
-for k in int(flicker):
-    f.write('{}\t{}\t{}\n'.format(k[0],k[1],k[2]))
-f.close()
-
-f = open(basename + '_fix.feat', 'w')
-for k in fix:
+for k in flick:
     f.write('{}\t{}\t{}\n'.format(k[0],k[1],k[2]))
 f.close()
 
 # In[Debug - Frame by Frame]:
 
 f = open(basename + '_debug.log', 'w')
-f.write("""Start Time\tNearest Frame\tCon\tTime Post Flip\tSwap Debug List\n""")
+f.write("""Start Time\tNearest Frame\tSwap?\tCon\tTime Post Flip\tSwap Debug List\n""")
 for v in debug:
     for x in v:
         f.write('{}\t'.format(x))

@@ -313,7 +313,7 @@ if show_inst:
 		inst.draw()
 		win.flip()
 		fmri_clock.reset()
-        while fmri_clock.getTime() < 2:
+        	while fmri_clock.getTime() < 2:
 			pass
 	fixate.draw()
 	win.flip()
@@ -465,7 +465,7 @@ else:
     event.waitKeys(keyList=['space'])
     timer.expstart()
     fmri_clock.reset()
-    t0 = fmri_clock.reset()
+    t0 = fmri_clock.getTime()
     
 # In[Tracker - Start]:
     
@@ -506,6 +506,8 @@ resp = None
 resp_time = None
 debug = []
 abort = False
+target_fade_list = []
+ntarget_fade_list = []
 
 # In[Run Trial]:
 
@@ -516,6 +518,8 @@ task_clock.reset()
 for frame in timing:
     
     debug_frame = []
+    target_fade_frame = []
+    ntarget_fade_frame = []
     
     debug_frame.append(task_clock.getTime())
     debug_frame.append(find_nearest_val(timing,task_clock.getTime()))
@@ -563,6 +567,9 @@ for frame in timing:
     #redraw fixation point
     fixate.draw()
     
+    target_fade_frame.append(t_timing)
+    ntarget_fade_frame.append(t_timing)
+    
     #write to screen and record time written
     while task_clock.getTime() < frame:
         pass
@@ -592,6 +599,13 @@ for frame in timing:
         d_offset = None
     else:
         debug_frame.append(None)
+        
+    task_time = task_clock.getTime()
+    
+    target_fade_frame.append((task_time - t_timing))
+    ntarget_fade_frame.append((task_time - t_timing))
+    target_fade_frame.append(timg.opacity)
+    ntarget_fade_frame.append(ntimg.opacity)
 
     response = event.getKeys()
     if 'space' in response:
@@ -607,6 +621,8 @@ for frame in timing:
     resp_time = 0
     
     debug.append(debug_frame)
+    target_fade_list.append(target_fade_frame)
+    ntarget_fade_list.append(target_fade_frame)
 
 t1 = fmri_clock.getTime()
 
@@ -638,20 +654,32 @@ os.chdir(cwd + '/' + direc_name)
 # In[Export Files - Eyetracker Run Log]:
 
 f = open(direc_name + '.log', 'a')
-f.write('{},{},{},{},{}\n'.format(str(run),wtype,cps_str,abort,str(t0),str(t1)))
+f.write('{},{},{},{},{},{}\n'.format(str(run),wtype,cps_str,abort,str(t0),str(t1)))
 f.close()
 
 # In[Folder Org P. 2]:
 
 os.chdir(cwd + '/' + direc_name + '/' + folder_name)
 
-while os.path.exists(basename + '.feat'):
+while os.path.exists(basename + '_trigger.feat'):
     basename = basename + '+'
 
 # In[Export Files - Trigger Feat]:
 
-f = open(basename + '.feat', 'w')
+f = open(basename + '_trigger.feat', 'w')
 for k in targetlist:
+    f.write('{}\t{}\t{}\n'.format(k[0],k[1],k[2]))
+f.close()
+
+# In[Export Files - Fade Feat]:
+
+f = open(basename + '_tside.feat', 'w')
+for k in target_fade_list:
+    f.write('{}\t{}\t{}\n'.format(k[0],k[1],k[2]))
+f.close()
+
+f = open(basename + '_ntside.feat', 'w')
+for k in target_fade_list:
     f.write('{}\t{}\t{}\n'.format(k[0],k[1],k[2]))
 f.close()
 
