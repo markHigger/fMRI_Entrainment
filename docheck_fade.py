@@ -510,6 +510,7 @@ debug = []
 abort = False
 target_fade_list = []
 ntarget_fade_list = []
+time2 = None
 
 # In[Run Trial]:
 
@@ -519,6 +520,9 @@ task_clock.reset()
 
 for frame in timing:
     
+    if time2 == None:
+        time2 = task_clock.getTime()
+        
     debug_frame = []
     target_fade_frame = []
     ntarget_fade_frame = []
@@ -530,23 +534,21 @@ for frame in timing:
         break
     
     #set alternating contrast on both checkerboards
-    if targetFlicker[find_nearest_idx(timing,task_clock.getTime())] == 1:
+    if targetFlicker[find_nearest_idx(timing,time2)] == 1:
         timg.contrast = .8
-	ntimg.contrast = .8
     else:
         timg.contrast = -.8
-	ntimg.contrast = -.8
-    #if ntargetFlicker[find_nearest_idx(timing,task_clock.getTime())] == 1:
-        #ntimg.contrast = 1
-    #else:
-        #ntimg.contrast = -1
+    if ntargetFlicker[find_nearest_idx(timing,time2)] == 1:
+        ntimg.contrast = .8
+    else:
+        ntimg.contrast = -.8
         
     debug_frame.append(timg.contrast)
     debug_frame.append(ntimg.contrast)
     
     #set opacity to fade
-    timg.setOpacity(targetFade[find_nearest_idx(timing,task_clock.getTime())])
-    ntimg.setOpacity(targetFade[find_nearest_idx(timing,task_clock.getTime())])
+    timg.setOpacity(targetFade[find_nearest_idx(timing,time2)])
+    ntimg.setOpacity(targetFade[find_nearest_idx(timing,time2)])
     
     #draw checkerboards
     timg.draw()
@@ -555,18 +557,18 @@ for frame in timing:
     #Draw target at given times, this should occur every time the fade finishes
     #   an occilation
     t_timing = task_clock.getTime()
-    if draw_target[find_nearest_idx(timing,task_clock.getTime())] == 1:
+    if draw_target[find_nearest_idx(timing,time2)] == 1:
         target_obj.setOpacity(1)
         target_obj.fillColor = [-.25,-.25,-.25]
         t_crit = 0
-    elif draw_target[find_nearest_idx(timing,task_clock.getTime())] == 2:
+    elif draw_target[find_nearest_idx(timing,time2)] == 2:
         target_obj.setOpacity(1)
         target_obj.fillColor = [.2,.2,.2]
         t_crit = 1
-    elif draw_target[find_nearest_idx(timing,task_clock.getTime())] == 0:
+    elif draw_target[find_nearest_idx(timing,time2)] == 0:
         target_obj.setOpacity(0)
     target_obj.draw()
-    debug_frame.append(draw_target[find_nearest_idx(timing,task_clock.getTime())])
+    debug_frame.append(draw_target[find_nearest_idx(timing,time2)])
     
     #redraw fixation point
     fixate.draw()
@@ -579,14 +581,15 @@ for frame in timing:
         pass
     win.flip()
     time = fmri_clock.getTime()
+    time2 = task_clock.getTime()
     debug_frame.append(task_clock.getTime())
     
-    if t_onset == None and d_onset == None and (draw_target[find_nearest_idx(timing,t_timing)] == 1 or draw_target[find_nearest_idx(timing,t_timing)] == 2):
+    if t_onset == None and d_onset == None and (draw_target[find_nearest_idx(timing,time2)] == 1 or draw_target[find_nearest_idx(timing,time2)] == 2):
         t_onset = time
         d_onset = frame
         debug_frame.append(t_onset)
 
-    elif t_offset == None and d_offset == None and t_onset != None and draw_target[find_nearest_idx(timing,t_timing)] == 0:
+    elif t_offset == None and d_offset == None and t_onset != None and draw_target[find_nearest_idx(timing,time2)] == 0:
         t_offset = time
         d_offset = frame
         debug_frame.append(t_offset)

@@ -15,9 +15,9 @@ REFRESH = 60
 
 # In[Experiment Parameters - SCANNER]:
 
-SCAN = True 
+SCAN = False #CHANGE THIS
 INSTRUCT = False
-SECONDS = 420
+SECONDS = 60 #CHANGE THIS
 TRACKER = False
 PULSEKEY = 4
 VALIDKEYS = [0,3]

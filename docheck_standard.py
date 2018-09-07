@@ -220,6 +220,7 @@ task_clock = core.Clock()
 		#inst.draw()
 		#win.flip()
         	#core.wait(2)
+
 fixate.draw()
 win.flip()
     
@@ -304,33 +305,38 @@ f_onset = None
 f_offset = None
 abort = False
 flick_cycle = False
+time2 = None
 
 # In[Run Trial]:
 
 cont = True
 
 task_clock.reset()
+#check_time = core.Clock()
 
 for frame in timing:
+    
+    if time2 == None:
+        time2 = task_clock.getTime()
     
     debug_frame = []
     
     debug_frame.append(task_clock.getTime())
-    debug_frame.append(find_nearest_val(timing,task_clock.getTime()))
+    debug_frame.append(find_nearest_val(timing,time2))
     
     if not cont:
         break
     
     #set alternating contrast on both checkerboards
-    if flicker_block[find_nearest_idx(timing,task_clock.getTime())] == 1:
+    if flicker_block[find_nearest_idx(timing,time2)] == 1:
         timg.contrast = 1
         ntimg.contrast = 1
         swap_bool = False
-    elif flicker_block[find_nearest_idx(timing,task_clock.getTime())] == -1:
+    elif flicker_block[find_nearest_idx(timing,time2)] == -1:
         timg.contrast = -1
         ntimg.contrast = -1
         swap_bool = False
-    elif flicker_block[find_nearest_idx(timing,task_clock.getTime())] == 2:
+    elif flicker_block[find_nearest_idx(timing,time2)] == 2:
         swap_bool = True
         
     debug_frame.append(swap_bool)
@@ -349,6 +355,7 @@ for frame in timing:
         pass
     win.flip()
     time = fmri_clock.getTime()
+    time2 = task_clock.getTime()
     debug_frame.append(task_clock.getTime())
     
     if flick_cycle and f_onset == None:
