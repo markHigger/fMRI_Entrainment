@@ -1,4 +1,3 @@
-#TODO: Why is the timing off when pausing? 
 
 # In[Documentation]:
 
@@ -130,7 +129,9 @@ pixpcm = res[0] / res[2]
 base_dist_pix = int(base_dist_half * pixpcm) + 128
 
 # In[Initiate PyGaze Objects]:
-kb = Keyboard()
+
+if inScanner or withTracker:
+    kb = Keyboard()
 
 if withTracker:
     disp = Display()
@@ -175,7 +176,7 @@ timg = psychopy.visual.ImageStim(
     image="right.png",
     units="pix",
     pos = (base_dist_pix, 0),
-    opacity = 0
+    opacity = 1
 )
 
 ntimg = psychopy.visual.ImageStim(
@@ -183,7 +184,7 @@ ntimg = psychopy.visual.ImageStim(
     image="left.png",
     units="pix",
     pos = (base_dist_pix * -1,0),
-    opacity = 0
+    opacity = 1
 )
 
 fixate = psychopy.visual.ShapeStim(
@@ -214,12 +215,12 @@ task_clock = core.Clock()
 
 # In[Show Instructions]:
 
-#if show_inst:
-	#for txt in inst_text:
-		#inst.text = txt
-		#inst.draw()
-		#win.flip()
-        	#core.wait(2)
+if show_inst:
+	for txt in inst_text:
+		inst.text = txt
+		inst.draw()
+		win.flip()
+        	core.wait(2)
 
 fixate.draw()
 win.flip()
@@ -238,23 +239,24 @@ flicker_cycle = np.ones(cycle_size)
 for x in range(flicker_time):
     flicker_cycle[0+x::flicker_time*2] = -1
 swap = cycle_size
-flicker_cycle[-1] = 2
-null_cycle = np.ones(len(flicker_cycle))
-null_cycle[-1] = 2
+#flicker_cycle[-1] = 2
+#null_cycle = np.ones(len(flicker_cycle))
+#null_cycle[-1] = 2
 
 
 # In[Calculate Checkerboards - Compile Whole Trial]:
 
-flicker_block = []
-
-for x in range(cycles):
-    flicker_block.extend(null_cycle)
-    flicker_block.extend(flicker_cycle)
+#flicker_block = []
+#
+#for x in range(cycles):
+#    flicker_block.extend(null_cycle)
+#    flicker_block.extend(flicker_cycle)
     
 # In[Timing Debug]:
 
 sec_from_hz = 1/float(refresh)
-timing = [sec_from_hz * trial for trial in range(len(flicker_block))]
+#timing = [sec_from_hz * trial for trial in range(len(flicker_block))]
+timing = [sec_from_hz * trial for trial in range(len(flicker_cycle))]
 
 # In[Wait for Pulse]:
 
@@ -304,8 +306,8 @@ s_offset = None
 f_onset = None
 f_offset = None
 abort = False
-flick_cycle = False
-time2 = None
+time2 = 0
+cycle_count = 0
 
 # In[Run Trial]:
 
@@ -314,34 +316,31 @@ cont = True
 task_clock.reset()
 #check_time = core.Clock()
 
-for frame in timing:
-    
-    if time2 == None:
-        time2 = task_clock.getTime()
+while cont and cycle_count < cycles:
     
     debug_frame = []
     
-    debug_frame.append(task_clock.getTime())
-    debug_frame.append(find_nearest_val(timing,time2))
+    if time2 == 0:
+        time2 = task_clock.getTime()
+        
+    timing_val = find_nearest_val(timing,time2)
+    timing_index = find_nearest_idx(timing,time2)
     
-    if not cont:
-        break
+    debug_frame.append(task_clock.getTime())
+    debug_frame.append(timing_val)
     
     #set alternating contrast on both checkerboards
-    if flicker_block[find_nearest_idx(timing,time2)] == 1:
+    if flicker_cycle[timing_index] == 1:
         timg.contrast = 1
         ntimg.contrast = 1
         swap_bool = False
-    elif flicker_block[find_nearest_idx(timing,time2)] == -1:
+    elif flicker_cycle[timing_index] == -1:
         timg.contrast = -1
         ntimg.contrast = -1
         swap_bool = False
-    elif flicker_block[find_nearest_idx(timing,time2)] == 2:
-        swap_bool = True
         
     debug_frame.append(swap_bool)
     debug_frame.append(timg.contrast)
-    debug_frame.append(flick_cycle)
     
     #draw checkerboards
     timg.draw()
@@ -351,33 +350,31 @@ for frame in timing:
     fixate.draw()
     
     #write to screen and record time written
-    while task_clock.getTime() < frame:
+    while task_clock.getTime() < timing[timing_index]:
         pass
     win.flip()
     time = fmri_clock.getTime()
     time2 = task_clock.getTime()
     debug_frame.append(task_clock.getTime())
     
-    if flick_cycle and f_onset == None:
+    if f_onset == None:
         f_onset = time
-        timg.setOpacity(1)
-        ntimg.setOpacity(1)
-    elif swap_bool and flick_cycle:
+        timg.opacity = 1
+        ntimg.opacity = 1
+        
+    if time2 > timing[-1]:
+        fixate.draw()
+        win.flip()
         f_offset = time
-        flick_cycle = not flick_cycle
         flick.append([f_onset, (f_offset-f_onset), 1])
+        task_clock.reset()
+        while task_clock.getTime() < 20:
+            pass
         f_onset = None
         f_offset = None
-    elif (not flick_cycle) and s_onset == None:
-        s_onset = time
-        timg.setOpacity(0)
-        ntimg.setOpacity(0)
-    elif (not flick_cycle) and swap_bool:
-        s_offset = time
-        flick_cycle = not flick_cycle
-        flick.append([s_onset, (s_offset - s_onset), 0])
-        s_onset = None
-        s_offset = None
+        cycle_count += 1
+        task_clock.reset()
+        time2 = task_clock.getTime()
 
     response = event.getKeys()
     if 'escape' in response:
@@ -386,10 +383,6 @@ for frame in timing:
     
     debug.append(debug_frame)
 
-timg.setOpacity(0)
-ntimg.setOpacity(0)
-timg.draw()
-ntimg.draw()
 win.flip()
 event.waitKeys(keyList=['space'])
 
