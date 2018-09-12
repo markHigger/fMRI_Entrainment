@@ -54,6 +54,7 @@ import pygaze.libtime as timer
 from pygaze.libscreen import Display, Screen
 import pyxid
 from pygaze.eyetracker import EyeTracker
+import pygaze
 
 # In[Import - Scanner]:
 
@@ -205,58 +206,94 @@ base_dist_half = base_dist / 2
 pixpcm = res[0] / res[2]
 base_dist_pix = int(base_dist_half * pixpcm) + 128
 
+# In[Prep Output]:
+
+cps_str = str(args.tcps).replace('.','_')
+basename = "{}_{}".format(subid, cps_str)
+
+direc_name = subid
+folder_name = wtype + '_' + cps_str
+
+cwd = os.getcwd()
+
+subject_folder_path = os.path.join(cwd, direc_name)
+session_folder_path = os.path.join(subject_folder_path,folder_name)
+fmri_folder_path = os.path.join(session_folder_path,'fmri')
+debug_folder_path = os.path.join(session_folder_path,'task debug')
+tracker_folder_path = os.path.join(session_folder_path,'eyetracking')
+task_folder_path = os.path.join(session_folder_path,'task')
+
+if not os.path.exists(subject_folder_path):
+    os.mkdir(subject_folder_path)
+if not os.path.exists(session_folder_path):
+    os.mkdir(session_folder_path)
+if not os.path.exists(fmri_folder_path):
+    os.mkdir(fmri_folder_path)
+if not os.path.exists(debug_folder_path):
+    os.mkdir(debug_folder_path)
+if withTracker and not os.path.exists(tracker_folder_path):
+    os.mkdir(tracker_folder_path)
+if not os.path.exists(task_folder_path):
+    os.mkdir(task_folder_path)
+    
+while os.path.exists(os.path.join(debug_folder_path, basename + '_debug.log')):
+    basename += '+'
+
 # In[Initiate PyGaze Objects]:
+
+disp = Display(disptype='psychopy')
+scr = Screen(disptype='psychopy')
 
 if inScanner or withTracker:
     kb = Keyboard()
+    
 if withTracker:
-    disp = Display()
-    scr = Screen()
     tracker = EyeTracker(disp)
+    
+    DISPSIZE = cst.DISPSIZE
+    
+    LOGFILENAME = basename
+    director = os.getcwd()
+    LOGFILE = os.path.join(tracker_folder_path,LOGFILENAME)
+    
+    FGC = cst.FGC
+    BGC = cst.BGC
+    SACCVELTHRESH = cst.SACCVELTHRESH
+    SACCACCTHRESH = cst.SACCACCTHRESH
+    TRACKERTYPE = cst.TRACKERTYPE
     
 # In[Tracker - Calibrate]:
     
 if withTracker and run == 0:
-    trackinst = open('trackerInstructions.text')
-    trackerInstructions = trackinst.read()
-    trackinst.close()
     
-    scr.draw_text(text=trackerInstructions)
+    scr.draw_text('tracker instructions')
     disp.fill(scr)
     disp.show()
     
     kb.get_key(keylist = None, timeout = None, flush = True)
     
-    tracker.calibrate()
+    if TRACKERTYPE != 'dummy':
+        tracker.calibrate()
     
     scr.clear()
-    disp.close()
 
 elif withTracker:
     scr.clear()
-    disp.close()
     
 # In[Initiate PsychoPy Objects]:
 
 psychopy.event.clearEvents()
 
-win = psychopy.visual.Window(
-    size=[res[0], res[1]], 
-    units="pix",
-    fullscr=True,
-    waitBlanking=True,
-    colorSpace = 'rgb'
-)
     
 timg = psychopy.visual.ImageStim(
-    win=win,
+    win=pygaze.expdisplay,
     image="right.png",
     units="pix",
     pos = (base_dist_pix, 0)
 )
 
 ntimg = psychopy.visual.ImageStim(
-    win=win,
+    win=pygaze.expdisplay,
     image="left.png",
     units="pix",
     pos = (base_dist_pix * -1,0)
@@ -271,7 +308,7 @@ if check_tar != 'r':
 
 
 fixate = psychopy.visual.ShapeStim(
-    win=win,
+    win=pygaze.expdisplay,
     units="pix",
     vertices=((-3,.5),(-.5,.5),
               (-.5,3),(.5,3),
@@ -285,14 +322,14 @@ fixate = psychopy.visual.ShapeStim(
 )
 
 inst = psychopy.visual.TextStim(
-	win=win,
+	win=pygaze.expdisplay,
 	text=inst_text,
 	height=50.
 
 )
 
 target_obj = psychopy.visual.Circle(
-    win=win,
+    win=pygaze.expdisplay,
     units="pix",
     radius=10,
     fillColor=[-0.125, -0.125, -0.125],
@@ -310,16 +347,21 @@ task_clock = core.Clock()
 
 # In[Show Instructions]:
 
-for txt in inst_text:
-	inst.text = txt
-	inst.draw()
-	win.flip()
-	fmri_clock.reset()
-        while fmri_clock.getTime() < 2:
-		pass
+if show_inst:
+	for txt in inst_text:
+        	inst.text = txt
+        	scr.clear()
+        	scr.screen.append(inst)
+        	disp.fill(screen=scr)
+        	disp.show()
+        	fmri_clock.reset()
+        	while fmri_clock.getTime() < 2:
+            		pass
 
-fixate.draw()
-win.flip()
+scr.clear()
+scr.screen.append(fixate)
+disp.fill(screen=scr)
+disp.show()
     
 # In[Calculate Checkerboards - Initiate Variables]:
 
@@ -471,6 +513,10 @@ else:
     fmri_clock.reset()
     t0 = fmri_clock.getTime()
     
+if withTracker:
+    tracker.start_recording()
+    tracker.log("start trial %d" % 1)
+    
 # In[Tracker - Start]:
     
 if withTracker:
@@ -483,8 +529,10 @@ if withTracker:
 
 #draw fixate point, will not change throughout experiment
 fixate.size = 5
-fixate.draw()
-win.flip()
+scr.clear()
+scr.screen.append(fixate)
+disp.fill(screen=scr)
+disp.show()
 
 #wait half a second before starting 
 while fmri_clock.getTime() < 0.5:
@@ -492,8 +540,10 @@ while fmri_clock.getTime() < 0.5:
 
 #fixate point drawn again, smaller
 fixate.size = 3
-fixate.draw()
-win.flip()
+scr.clear()
+scr.screen.append(fixate)
+disp.fill(screen=scr)
+disp.show()
 
 # In[Initiate Trial Variables]
 
@@ -554,9 +604,6 @@ while cont:
     timg.setOpacity(targetFade[timing_index])
     ntimg.setOpacity(targetFade[timing_index])
     
-    #draw checkerboards
-    timg.draw()
-    ntimg.draw()
     
     #Draw target at given times, this should occur every time the fade finishes
     #   an occilation
@@ -571,11 +618,14 @@ while cont:
         t_crit = 1
     elif draw_target[timing_index] == 0:
         target_obj.setOpacity(0)
-    target_obj.draw()
     debug_frame.append(draw_target[find_nearest_idx(timing,time2)])
     
     #redraw fixation point
-    fixate.draw()
+    scr.clear()
+    scr.screen.append(timg)
+    scr.screen.append(ntimg)
+    scr.screen.append(fixate)
+    scr.screen.append(target_obj)
     
     target_fade_frame.append(t_timing)
     ntarget_fade_frame.append(t_timing)
@@ -583,7 +633,8 @@ while cont:
     #write to screen and record time written
     while task_clock.getTime() < timing[timing_index]:
         pass
-    win.flip()
+    disp.fill(screen=scr)
+    disp.show()
     time = fmri_clock.getTime()
     time2 = task_clock.getTime()
     debug_frame.append(task_clock.getTime())
@@ -642,43 +693,28 @@ t1 = fmri_clock.getTime()
 
 # In[Export Files - Variables and Folder Org]:
 
-cps_str = str(args.tcps).replace('.','_')
-basename = "{}_{}".format(subid, cps_str)
 if abort:
     basename += '_abort'
-
-direc_name = subid
-folder_name = wtype + '_' + cps_str
-
-cwd = os.getcwd()
-
-if not os.path.exists(cwd + '/' + direc_name):
-    os.mkdir(cwd + '/' + direc_name)
-if not os.path.exists(cwd + '/' + direc_name + '/' + folder_name):
-    os.mkdir(cwd + '/' + direc_name + '/' + folder_name)
     
 # In[Edit Run Count]:
+    
+os.chdir(cwd)
     
 f = open('run.py','w')
 f.write('RUN = ' + str(run + 1))
 f.close()
-    
-os.chdir(cwd + '/' + direc_name)
 
 # In[Export Files - Eyetracker Run Log]:
+
+os.chdir(subject_folder_path)
 
 f = open(direc_name + '.log', 'a')
 f.write('{},{},{},{},{},{}\n'.format(str(run),wtype,cps_str,abort,str(t0),str(t1)))
 f.close()
 
-# In[Folder Org P. 2]:
-
-os.chdir(cwd + '/' + direc_name + '/' + folder_name)
-
-while os.path.exists(basename + '_trigger.feat'):
-    basename = basename + '+'
-
 # In[Export Files - Trigger Feat]:
+
+os.chdir(task_folder_path)
 
 f = open(basename + '_trigger.feat', 'w')
 for k in targetlist:
@@ -686,6 +722,7 @@ for k in targetlist:
 f.close()
 
 # In[Export Files - Fade Feat]:
+os.chdir(fmri_folder_path)
 
 f = open(basename + '_tside.feat', 'w')
 for k in target_fade_list:
@@ -698,6 +735,8 @@ for k in target_fade_list:
 f.close()
 
 # In[Export Files - Response QC Log]:
+
+os.chdir(task_folder_path)
 
 count = 0
 crit = False
@@ -750,6 +789,8 @@ f.close()
 
 # In[Debug - Frame by Frame]:
 
+os.chdir(debug_folder_path)
+
 f = open(basename + '_debug.log', 'w')
 f.write("""Start Time\tNearest Frame\tTCon\tNTCon\tTarget\tTime Post Flip\tTOnset/Offset?\tTarget Off Debug List\n""")
 for v in debug:
@@ -768,4 +809,8 @@ f.close()
 
 # In[Exit]:
 
-win.close()
+disp.close()
+
+if withTracker:
+    tracker.stop_recording()
+    tracker.close()

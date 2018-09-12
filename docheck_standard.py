@@ -36,6 +36,7 @@ import pygaze.libtime as timer
 from pygaze.libscreen import Display, Screen
 import pyxid
 from pygaze.eyetracker import EyeTracker
+import pygaze
 
 # In[Import - Scanner]:
 
@@ -128,51 +129,82 @@ base_dist_half = base_dist / 2
 pixpcm = res[0] / res[2]
 base_dist_pix = int(base_dist_half * pixpcm) + 128
 
+# In[Prep Output]:
+
+fps_str = str(flicker).replace('.','_')
+basename = "{}_{}".format(subid, fps_str)
+
+direc_name = subid
+folder_name = 'standard_' + fps_str
+
+cwd = os.getcwd()
+
+subject_folder_path = os.path.join(cwd, direc_name)
+session_folder_path = os.path.join(subject_folder_path,folder_name)
+fmri_folder_path = os.path.join(session_folder_path,'fmri')
+debug_folder_path = os.path.join(session_folder_path,'task debug')
+tracker_folder_path = os.path.join(session_folder_path,'eyetracking')
+
+if not os.path.exists(subject_folder_path):
+    os.mkdir(subject_folder_path)
+if not os.path.exists(session_folder_path):
+    os.mkdir(session_folder_path)
+if not os.path.exists(fmri_folder_path):
+    os.mkdir(fmri_folder_path)
+if not os.path.exists(debug_folder_path):
+    os.mkdir(debug_folder_path)
+if withTracker and not os.path.exists(tracker_folder_path):
+    os.mkdir(tracker_folder_path)
+    
+while os.path.exists(os.path.join(debug_folder_path, basename + '_debug.log')):
+    basename += '+'
+
 # In[Initiate PyGaze Objects]:
+disp = Display(disptype='psychopy')
+scr = Screen(disptype='psychopy')
 
 if inScanner or withTracker:
     kb = Keyboard()
 
 if withTracker:
-    disp = Display()
-    scr = Screen()
     tracker = EyeTracker(disp)
     
+    DISPSIZE = cst.DISPSIZE
+    
+    LOGFILENAME = basename + '_eyetracker'
+    director = os.getcwd()
+    LOGFILE = os.path.join(director,LOGFILENAME)
+    
+    FGC = cst.FGC
+    BGC = cst.BGC
+    SACCVELTHRESH = cst.SACCVELTHRESH
+    SACCACCTHRESH = cst.SACCACCTHRESH
+    TRACKERTYPE = cst.TRACKERTYPE
+    
 # In[Tracker - Calibrate]:
-    
+
 if withTracker and run == 0:
-    trackinst = open('trackerInstructions.text')
-    trackerInstructions = trackinst.read()
-    trackinst.close()
     
-    scr.draw_text(text=trackerInstructions)
+    scr.draw_text(text='tracker instructions')
     disp.fill(scr)
     disp.show()
     
     kb.get_key(keylist = None, timeout = None, flush = True)
     
-    tracker.calibrate()
+    if TRACKERTYPE != 'dummy':
+        tracker.calibrate()
     
     scr.clear()
-    disp.close()
     
 elif withTracker:
     scr.clear()
-    disp.close()
 
 # In[Initiate PsychoPy Objects]:
 
 psychopy.event.clearEvents()
-
-win = psychopy.visual.Window(
-    size=[res[0], res[1]], 
-    units="pix",
-    fullscr=True,
-    waitBlanking=True
-)
     
 timg = psychopy.visual.ImageStim(
-    win=win,
+    win=pygaze.expdisplay,
     image="right.png",
     units="pix",
     pos = (base_dist_pix, 0),
@@ -180,7 +212,7 @@ timg = psychopy.visual.ImageStim(
 )
 
 ntimg = psychopy.visual.ImageStim(
-    win=win,
+    win=pygaze.expdisplay,
     image="left.png",
     units="pix",
     pos = (base_dist_pix * -1,0),
@@ -188,7 +220,7 @@ ntimg = psychopy.visual.ImageStim(
 )
 
 fixate = psychopy.visual.ShapeStim(
-    win=win,
+    win=pygaze.expdisplay,
     units="pix",
     vertices=((-3,.5),(-.5,.5),
               (-.5,3),(.5,3),
@@ -202,7 +234,7 @@ fixate = psychopy.visual.ShapeStim(
 )
 
 inst = psychopy.visual.TextStim(
-	win=win,
+	win=pygaze.expdisplay,
 	text='',
 	height=50.
 
@@ -217,13 +249,19 @@ task_clock = core.Clock()
 
 if show_inst:
 	for txt in inst_text:
-		inst.text = txt
-		inst.draw()
-		win.flip()
-        	core.wait(2)
+        	inst.text = txt
+        	scr.clear()
+        	scr.screen.append(inst)
+        	disp.fill(screen=scr)
+        	disp.show()
+        	fmri_clock.reset()
+        	while fmri_clock.getTime() < 2:
+            		pass
 
-fixate.draw()
-win.flip()
+scr.clear()
+scr.screen.append(fixate)
+disp.fill(screen=scr)
+disp.show()
     
 # In[Calculate Checkerboards - Initiate Variables]:
 
@@ -271,6 +309,10 @@ else:
     fmri_clock.reset()
     t0 = fmri_clock.reset()
     
+if withTracker:
+    tracker.start_recording()
+    tracker.log("start trial %d" % 1)
+    
 # In[Tracker - Start]:
     
 if withTracker:
@@ -283,8 +325,10 @@ if withTracker:
 
 #draw fixate point, will not change throughout experiment
 fixate.size = 5
-fixate.draw()
-win.flip()
+scr.clear()
+scr.screen.append(fixate)
+disp.fill(screen=scr)
+disp.show()
 
 #wait half a second before starting 
 while fmri_clock.getTime() < 0.5:
@@ -292,8 +336,10 @@ while fmri_clock.getTime() < 0.5:
 
 #fixate point drawn again, smaller
 fixate.size = 3
-fixate.draw()
-win.flip()
+scr.clear()
+scr.screen.append(fixate)
+disp.fill(screen=scr)
+disp.show()
 
 # In[Initiate Trial Variables]
 
@@ -343,16 +389,17 @@ while cont and cycle_count < cycles:
     debug_frame.append(timg.contrast)
     
     #draw checkerboards
-    timg.draw()
-    ntimg.draw()
-    
-    #redraw fixation point
-    fixate.draw()
+    scr.clear()
+    scr.screen.append(timg)
+    scr.screen.append(ntimg)
+    scr.screen.append(fixate)
     
     #write to screen and record time written
     while task_clock.getTime() < timing[timing_index]:
         pass
-    win.flip()
+    disp.fill(screen=scr)
+    disp.show()
+    
     time = fmri_clock.getTime()
     time2 = task_clock.getTime()
     debug_frame.append(task_clock.getTime())
@@ -363,8 +410,10 @@ while cont and cycle_count < cycles:
         ntimg.opacity = 1
         
     if time2 > timing[-1]:
-        fixate.draw()
-        win.flip()
+        scr.clear()
+        scr.screen.append(fixate)
+        disp.fill(screen=scr)
+        disp.show()
         f_offset = time
         flick.append([f_onset, (f_offset-f_onset), 1])
         task_clock.reset()
@@ -383,52 +432,36 @@ while cont and cycle_count < cycles:
     
     debug.append(debug_frame)
 
-win.flip()
+scr.clear()
+disp.fill(screen=scr)
+disp.show()
 event.waitKeys(keyList=['space'])
 
 t1 = fmri_clock.getTime()
 
 # In[Export Files - Variables and Folder Org]:
 
-fps_str = str(flicker).replace('.','_')
-basename = "{}_{}".format(subid, fps_str)
 if abort:
     basename += '_abort'
-
-direc_name = subid
-folder_name = 'standard_' + fps_str
-
-cwd = os.getcwd()
-
-if not os.path.exists(cwd + '/' + direc_name):
-    os.mkdir(cwd + '/' + direc_name)
-if not os.path.exists(cwd + '/' + direc_name + '/' + folder_name):
-    os.mkdir(cwd + '/' + direc_name + '/' + folder_name)
     
 # In[Edit Run Count]:
-    
+os.chdir(cwd)
+
 f = open("run.py", 'w')
 f.write('RUN = ' + str(run + 1))
 f.close()
 
-# In[Export Files - Folder Org Pt. 2]
-    
-os.chdir(cwd + '/' + direc_name)
-
 # In[Export Files - Eyetracker Run Log]:
+
+os.chdir(subject_folder_path)
 
 f = open(direc_name + '.log', 'a')
 f.write('{},{},{},{},{},{}\n'.format(str(run),'standard',fps_str,abort,str(t0),str(t1)))
 f.close()
 
-# In[Folder Org Pt. 3]:
-
-os.chdir(cwd + '/' + direc_name + '/' + folder_name)
-
-while os.path.exists(basename + '_flicker.feat'):
-    basename = basename + '+'
-
 # In[Export Files - Flicker/Fix Feat]:
+
+os.chdir(fmri_folder_path)
 
 f = open(basename + '_flicker.feat', 'w')
 for k in flick:
@@ -436,6 +469,8 @@ for k in flick:
 f.close()
 
 # In[Debug - Frame by Frame]:
+
+os.chdir(debug_folder_path)
 
 f = open(basename + '_debug.log', 'w')
 f.write("""Start Time\tNearest Frame\tSwap?\tCon\tTime Post Flip\tSwap Debug List\n""")
@@ -454,5 +489,8 @@ f.close()
 #f.close()
 
 # In[Exit]:
+disp.close()
 
-win.close()
+if withTracker:
+    tracker.stop_recording()
+    tracker.close()
