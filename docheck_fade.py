@@ -716,7 +716,7 @@ f.close()
 
 os.chdir(task_folder_path)
 
-f = open(basename + '_trigger.feat', 'w')
+f = open(basename + '_target.feat', 'w')
 for k in targetlist:
     f.write('{}\t{}\t{}\n'.format(k[0],k[1],k[2]))
 f.close()
