@@ -172,20 +172,21 @@ if withTracker:
     DISPSIZE = cst.DISPSIZE
     
     LOGFILENAME = basename + '_eyetracker'
-    director = os.getcwd()
-    LOGFILE = os.path.join(director,LOGFILENAME)
+    LOGFILE = os.path.join(cwd,LOGFILENAME)
     
     FGC = cst.FGC
     BGC = cst.BGC
     SACCVELTHRESH = cst.SACCVELTHRESH
     SACCACCTHRESH = cst.SACCACCTHRESH
     TRACKERTYPE = cst.TRACKERTYPE
+    SCREENSIZE = cst.SCREENSIZE
     
 # In[Tracker - Calibrate]:
 
 if withTracker and run == 0:
     
-    scr.draw_text(text='tracker instructions')
+    scr.draw_text(text="""We will now calibrate the eyetracker. Dots will appear one at a time. Focus on them until they
+                  disappear.""")
     disp.fill(scr)
     disp.show()
     
