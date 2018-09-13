@@ -1,8 +1,4 @@
-# In[TODO]:
 
-"""
-~send trigger (where?) with critical stimuli
-"""
 
 # In[Documentation]:
 
@@ -58,32 +54,29 @@ import pygaze.libtime as timer
 from pygaze.libscreen import Display, Screen
 import pyxid
 from pygaze.eyetracker import EyeTracker
+import pygaze
 
 # In[Import - Scanner]:
 
 import nki3Tbasics as b3T
 import constants as cst
+import run as r
 
 # In[Helper]:
 
 #finds least common multiple of a and b
 def lcm(a, b):
     return (a * b) / gcd(a,b)
+            
+def find_nearest_val(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return array[idx]
 
-#waits for pulse key from scanner
-def waitForPulseKey(dev, timer, kb, pulseKey):
-    hasPulsed = False
-    while hasPulsed == False:
-        kPress = kb.get_key(keylist='q') # Allow clean escape by holding down 'q' key
-        if kPress[0] != None:
-            break
-        dev.poll_for_response()
-        if dev.response_queue_size() > 0:
-            response = dev.get_next_response()
-            if response['pressed'] == True and response['key'] == pulseKey:
-                hasPulsed = True
-                dev.con.flush_input()
-                return timer.get_time()
+def find_nearest_idx(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return idx
 
 # In[Initiate Parser]:
 
@@ -107,11 +100,11 @@ parser.add_argument('-tside', dest='side',
 
 parser.add_argument('-tcpsec', dest='tcps', 
                     help='Cycles per second (hz)', 
-                    choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
+                    choices=[0.1, .125, 0.2, .25, 0.5, 1.0], default=0.5, type=float)
 
 parser.add_argument('-ntcpsec', dest='ntcps',
                     help='Cycles per second (hz)', 
-                    choices=[0.1, 0.2, 0.5, 1.0], default=0.5, type=float)
+                    choices=[0.1, .125, 0.2, .25, 0.5, 1.0], default=0.5, type=float)
 
 parser.add_argument('-tfpsec',dest='tfcps',
                     help='Cycles per second (hz) of flicker', 
@@ -123,7 +116,7 @@ parser.add_argument('-ntfpsec',dest='ntfcps',
 
 parser.add_argument('-phase',dest='ph',
                     help='Degrees of shift of non-target',
-                    default=60, type=int)
+                    default=0, type=int)
 
 parser.add_argument('-odd_rate',dest='orate',
                     help='Rate of oddball appearance, where the int entered is the denominator',
@@ -141,8 +134,9 @@ args = parser.parse_args()
 #instructions - show or not
 show_inst = cst.INSTRUCT
 inst_text = ['The experiment will begin shortly.',
-			"Once we begin, please",
-			"keep your eyes on the central gray cross."]
+            "Once we begin, please",
+            "keep your eyes on the central gray cross."]
+#inst_text = 'The experiment will begin shortly. Once we begin, please keep your eyes on the central gray cross.'
 
 #rate of target-side flicker
 tflicker = float(args.tfcps)
@@ -196,11 +190,10 @@ subid = args.subid
 #valid response keys
 validKeys = cst.VALIDKEYS
 
-#eye tracker
-withTracker = cst.TRACKER
-
 #wave type
 wtype = args.wtype
+
+run = r.RUN
 
 #find interstimulus distance, based on resolution and view distance, for 
 #4' viewing angle; since PsychoPy calculates distance on centerpoint, adding
@@ -210,32 +203,42 @@ base_dist_half = base_dist / 2
 pixpcm = res[0] / res[2]
 base_dist_pix = int(base_dist_half * pixpcm) + 128
 
+# In[Prep Output]:
+
+cps_str = str(args.tcps).replace('.','_')
+basename = "{}_{}".format(subid, cps_str)
+
+direc_name = subid
+folder_name = wtype + '_' + cps_str
+
+cwd = os.getcwd()
+
+subject_folder_path = os.path.join(cwd, direc_name)
+session_folder_path = os.path.join(subject_folder_path,folder_name)
+fmri_folder_path = os.path.join(session_folder_path,'fmri')
+debug_folder_path = os.path.join(session_folder_path,'task debug')
+tracker_folder_path = os.path.join(session_folder_path,'eyetracking')
+task_folder_path = os.path.join(session_folder_path,'task')
+
+if not os.path.exists(subject_folder_path):
+    os.mkdir(subject_folder_path)
+if not os.path.exists(session_folder_path):
+    os.mkdir(session_folder_path)
+if not os.path.exists(fmri_folder_path):
+    os.mkdir(fmri_folder_path)
+if not os.path.exists(debug_folder_path):
+    os.mkdir(debug_folder_path)
+if not os.path.exists(task_folder_path):
+    os.mkdir(task_folder_path)
+    
+while os.path.exists(os.path.join(debug_folder_path, basename + '_debug.log')):
+    basename += '+'
+
 # In[Initiate PyGaze Objects]:
 
-if withTracker:
+if inScanner:
     kb = Keyboard()
-    disp = Display()
-    scr = Screen()
-    tracker = EyeTracker(disp)
     
-# In[Tracker - Calibrate]:
-    
-if withTracker:
-    trackinst = open('trackerInstructions.text')
-    trackerInstructions = trackinst.read()
-    trackinst.close()
-    
-    scr.draw_text(text=trackerInstructions)
-    disp.fill(scr)
-    disp.show()
-    
-    kb.get_key(keylist = None, timeout = None, flush = True)
-    
-    tracker.calibrate()
-    
-    scr.clear()
-    disp.close()
-
 # In[Initiate PsychoPy Objects]:
 
 psychopy.event.clearEvents()
@@ -248,14 +251,14 @@ win = psychopy.visual.Window(
 )
     
 timg = psychopy.visual.ImageStim(
-    win=win,
+    win=pygaze.expdisplay,
     image="right.png",
     units="pix",
     pos = (base_dist_pix, 0)
 )
 
 ntimg = psychopy.visual.ImageStim(
-    win=win,
+    win=pygaze.expdisplay,
     image="left.png",
     units="pix",
     pos = (base_dist_pix * -1,0)
@@ -270,7 +273,7 @@ if check_tar != 'r':
 
 
 fixate = psychopy.visual.ShapeStim(
-    win=win,
+    win=pygaze.expdisplay,
     units="pix",
     vertices=((-3,.5),(-.5,.5),
               (-.5,3),(.5,3),
@@ -284,41 +287,42 @@ fixate = psychopy.visual.ShapeStim(
 )
 
 inst = psychopy.visual.TextStim(
-	win=win,
-	text='Placeholder Text',
-	height=50.,
-	flipVert=inScanner
+    win=pygaze.expdisplay,
+    text=inst_text,
+    height=50.
 
 )
 
 target_obj = psychopy.visual.Circle(
-    win=win,
+    win=pygaze.expdisplay,
     units="pix",
     radius=10,
     fillColor=[-0.125, -0.125, -0.125],
     lineColor=[-0.5, -0.5, -0.5],
     pos=(round(base_dist_pix / 2.2),0)
-	)
+    )
 
 if check_tar != 'r':
     target_obj.pos=(-50,0)
 
 event.Mouse(visible=False)
 
-clock = core.Clock()
+fmri_clock = core.Clock()
+task_clock = core.Clock()
 
 # In[Show Instructions]:
 
 if show_inst:
-	for txt in inst_text:
-		inst.text = txt
-		inst.draw()
-		win.flip()
-		clock.reset()
-		while clock.getTime() < 2:
-			pass
-	fixate.draw()
-	win.flip()
+    for txt in inst_text:
+            inst.text = txt
+            inst.draw()
+            win.flip()
+            fmri_clock.reset()
+            while fmri_clock.getTime() < 2:
+                pass
+
+fixate.draw()
+win.flip()
     
 # In[Calculate Checkerboards - Initiate Variables]:
 
@@ -397,21 +401,26 @@ if wtype != 'sine':
 
 t = np.zeros(SampleBase_target.shape)
 step = int((refresh*block_len) / (tnum_pi))
-step_flick = int(refresh * (1/tflicker))
+flicker_time = int(refresh * (1/tflicker))
 t[0::step] = 1
-t[step_flick::step] = -1
+target_minimal = t.copy()
+target_minimal[flicker_time::step] = -1
+for x in range(flicker_time):
+    t[0+x::step] = 1
+
 
 # In[Calculate Checkerboards - Generate Flickers]:
 
 #generate target-side flicker
 target_side = np.zeros(SampleBase_target.shape)
-target_side_step = int((refresh*block_len) / (tflicker * block_len))
-target_side[0:-1:target_side_step] = 1
+for x in range(flicker_time):
+    target_side[0+x::flicker_time*2] = 1
 
 #generate nontarget-side flicker
 ntarget_side = np.zeros(SampleBase_ntarget.shape)
-ntarget_side_step = int((refresh*block_len) / (ntflicker * block_len))
-ntarget_side[0:-1:ntarget_side_step] = 1
+n_flicker_time = int(refresh * (1/ntflicker))
+for x in range(n_flicker_time):
+    ntarget_side[0+x::n_flicker_time * 2] = 1
 
 # In[Calculate Checkerboards - Compile Whole Trial]:
 
@@ -421,6 +430,7 @@ ntargetFade = []
 draw_target = []
 targetFlicker = []
 ntargetFlicker = []
+draw_target_min = []
 
 #stack blocks into trial
 for block in range(block_num):
@@ -430,40 +440,39 @@ for block in range(block_num):
     ntargetFlicker.extend(ntarget_side)
     
     copy_t = t.copy()
+    copy_t_min = target_minimal.copy()
     mult = cycles // orate
     x_list = range(cycles)
     x_list.remove(0)
     for y in range(mult):
         l = 0
-        x = random.choice(x_list)
-        x_list.remove(x)
-        copy_t[step*x] = 2
+        x_choice = random.choice(x_list)
+        x_list.remove(x_choice)
+        copy_t_min[step*x_choice] = 2
+        for x in range(flicker_time):
+            copy_t[(step*x_choice) + x] = 2
     draw_target.extend(copy_t)
+    draw_target_min.extend(copy_t_min)
     
 # In[Timing Debug]:
 
 sec_from_hz = 1/float(refresh)
 timing = [sec_from_hz * trial for trial in range(len(targetFlicker))]
 dur = np.ones(len(targetFade)) * sec_from_hz
+t
 
 # In[Wait for Pulse]:
 
 if inScanner:
+    b3T.waitForPulseKey(dev,timer,kb,pkey)
     timer.expstart()
-    clock.reset()
-    t0 = waitForPulseKey(dev, timer, kb, pkey)
+    fmri_clock.reset()
+    t0 = fmri_clock.reset()
 else:
     event.waitKeys(keyList=['space'])
     timer.expstart()
-    clock.reset()
-    t0 = timer.get_time()
-    
-# In[Tracker - Start]:
-    
-if withTracker:
-    tracker.start_recording()
-    tracker.status_msg("Pulse Received; Recording...")
-    #timer.pause(waitTime) why the pause here?
+    fmri_clock.reset()
+    t0 = fmri_clock.getTime()
 
 
 # In[Initiate Trial Stimuli]:
@@ -474,18 +483,13 @@ fixate.draw()
 win.flip()
 
 #wait half a second before starting 
-while clock.getTime() < 0.5:
-	pass
-clock.reset()
+while fmri_clock.getTime() < 0.5:
+    pass
 
 #fixate point drawn again, smaller
 fixate.size = 3
 fixate.draw()
 win.flip()
-
-#set starting checkerboard contrast to 1
-tcon = 1
-ntcon = 1
 
 # In[Initiate Trial Variables]
 
@@ -500,133 +504,183 @@ d_offset = None
 t_crit = None
 resp = None
 resp_time = None
+debug = []
+abort = False
+target_fade_list = []
+ntarget_fade_list = []
+time2 = 0
+count = 0
 
 # In[Run Trial]:
 
 cont = True
 
-for frame in range(len(timing)):
+task_clock.reset()
+
+while cont:
     
-    if not cont:
-        break
+    debug_frame = []
+    target_fade_frame = []
+    ntarget_fade_frame = []
+    
+    if time2 == 0:
+        time2 = task_clock.getTime()
+        
+    timing_val = find_nearest_val(timing,time2)
+    timing_index = find_nearest_idx(timing,time2)
+    
+    debug_frame.append(task_clock.getTime())
+    debug_frame.append(timing_val)
+    
     
     #set alternating contrast on both checkerboards
-    if targetFlicker[frame] == 1:
-        timg.contrast = tcon
-        tcon *= -1
-    if ntargetFlicker[frame] == 1:
-        ntimg.contrast = ntcon
-        ntcon *= -1
+    if targetFlicker[timing_index] == 1:
+        timg.contrast = .8
+    else:
+        timg.contrast = -.8
+    if ntargetFlicker[timing_index] == 1:
+        ntimg.contrast = .8
+    else:
+        ntimg.contrast = -.8
+        
+    debug_frame.append(timg.contrast)
+    debug_frame.append(ntimg.contrast)
     
-    #set opacity to calculated fade
-    timg.setOpacity(targetFade[frame])
-    ntimg.setOpacity(ntargetFade[frame])
+    #set opacity to fade
+    timg.setOpacity(targetFade[timing_index])
+    ntimg.setOpacity(targetFade[timing_index])
     
-    #draw checkerboards
-    timg.draw()
-    ntimg.draw()
     
     #Draw target at given times, this should occur every time the fade finishes
     #   an occilation
-    if draw_target[frame] == 1:
+    t_timing = task_clock.getTime()
+    if draw_target[timing_index] == 1:
         target_obj.setOpacity(1)
         target_obj.fillColor = [-.25,-.25,-.25]
         t_crit = 0
-    elif draw_target[frame] == 2:
+    elif draw_target[timing_index] == 2:
         target_obj.setOpacity(1)
         target_obj.fillColor = [.2,.2,.2]
         t_crit = 1
-    elif draw_target[frame] == -1:
+    elif draw_target[timing_index] == 0:
         target_obj.setOpacity(0)
-    target_obj.draw()
+    debug_frame.append(draw_target[find_nearest_idx(timing,time2)])
     
     #redraw fixation point
+    timg.draw()
+    ntimg.draw()
     fixate.draw()
+    target_obj.draw()
+    
+    target_fade_frame.append(t_timing)
+    ntarget_fade_frame.append(t_timing)
     
     #write to screen and record time written
+    while task_clock.getTime() < timing[timing_index]:
+        pass
     win.flip()
-    time = clock.getTime()
-    tlist.append(time)
+    time = fmri_clock.getTime()
+    time2 = task_clock.getTime()
+    debug_frame.append(task_clock.getTime())
     
-    if draw_target[frame] == 1 or draw_target[frame] == 2:
+    if t_onset == None and d_onset == None and (draw_target[timing_index] == 1 or draw_target[timing_index] == 2):
         t_onset = time
-        d_onset = timing[frame]
+        d_onset = timing[find_nearest_idx(timing,time2)]
+        debug_frame.append(t_onset)
 
-    elif draw_target[frame] == -1:
+    elif t_offset == None and d_offset == None and t_onset != None and draw_target[timing_index] == 0:
         t_offset = time
-        d_offset = timing[frame]
+        d_offset = timing[timing_index]
+        debug_frame.append(t_offset)
+        
+    else:
+        debug_frame.append(None)
         
     if t_onset != None and t_offset != None:
         targetlist.append([t_onset,(t_offset-t_onset),t_crit])
-        debug.append([t_onset,t_offset,(t_offset-t_onset),d_onset,d_offset,(d_offset-d_onset)])
+        debug_frame.append([t_onset,t_offset,(t_offset-t_onset),d_onset,d_offset,(d_offset-d_onset)])
         t_onset = None
         t_offset = None
-        
-    if inScanner:
-        dev.poll_for_response()
-        if dev.response_queue_size() > 0:
-            response = dev.get_next_response()
-            if response['pressed'] == True:
-                kv = response['key']
-                rt = timer.get_time()
-                if kv in validKeys:
-                    resp = 1
-                    resp_time = rt
+        d_onset = None
+        d_offset = None
     else:
-        response = event.getKeys()
-        if 'space' in response:
-            resp = 1
-            resp_time = clock.getTime()
-        if 'escape' in response:
-            cont = False
+        debug_frame.append(None)
+        
+    task_time = task_clock.getTime()
+    
+    target_fade_frame.append((task_time - t_timing))
+    ntarget_fade_frame.append((task_time - t_timing))
+    target_fade_frame.append(timg.opacity)
+    ntarget_fade_frame.append(ntimg.opacity)
+
+    response = event.getKeys()
+    if 'space' in response:
+        resp = 1
+        resp_time = fmri_clock.getTime()
+    if 'escape' in response:
+        abort = True
+        cont = False
     
     resplist.append([resp,resp_time])
         
-    if inScanner:
-        dev.con.flush_input()
     resp = 0
     resp_time = 0
+    
+    debug.append(debug_frame)
+    target_fade_list.append(target_fade_frame)
+    ntarget_fade_list.append(target_fade_frame)
+    
+    if time2 > timing[-1]:
+        cont = False
 
-t1 = timer.get_time()
+t1 = fmri_clock.getTime()
 
 # In[Export Files - Variables and Folder Org]:
 
-cps_str = str(args.tcps).replace('.','_')
-basename = "{}_{}".format(subid, cps_str)
-
-direc_name = subid
-folder_name = wtype + '_' + cps_str
-
-cwd = os.getcwd()
-
-if not os.path.exists(cwd + '/' + direc_name):
-    os.mkdir(cwd + '/' + direc_name)
-if not os.path.exists(cwd + '/' + direc_name + '/' + folder_name):
-    os.mkdir(cwd + '/' + direc_name + '/' + folder_name)
+if abort:
+    basename += '_abort'
     
-os.chdir(cwd + '/' + direc_name)
+# In[Edit Run Count]:
+    
+os.chdir(cwd)
+    
+f = open('run.py','w')
+f.write('RUN = ' + str(run + 1))
+f.close()
 
 # In[Export Files - Eyetracker Run Log]:
 
+os.chdir(subject_folder_path)
+
 f = open(direc_name + '.log', 'a')
-f.write('{},{},{},{}\n'.format(wtype,cps_str,str(t0),str(t1)))
+f.write('{},{},{},{},{},{}\n'.format(str(run),wtype,cps_str,abort,str(t0),str(t1)))
 f.close()
-
-# In[Folder Org P. 2]:
-
-os.chdir(cwd + '/' + direc_name + '/' + folder_name)
-
-while os.path.exists(basename + '.feat'):
-    basename = basename + '+'
 
 # In[Export Files - Trigger Feat]:
 
-f = open(basename + '.feat', 'w')
+os.chdir(task_folder_path)
+
+f = open(basename + '_target.feat', 'w')
 for k in targetlist:
     f.write('{}\t{}\t{}\n'.format(k[0],k[1],k[2]))
 f.close()
 
+# In[Export Files - Fade Feat]:
+os.chdir(fmri_folder_path)
+
+f = open(basename + '_tside.feat', 'w')
+for k in target_fade_list:
+    f.write('{}\t{}\t{}\n'.format(k[0],k[1],k[2]))
+f.close()
+
+f = open(basename + '_ntside.feat', 'w')
+for k in target_fade_list:
+    f.write('{}\t{}\t{}\n'.format(k[0],k[1],k[2]))
+f.close()
+
 # In[Export Files - Response QC Log]:
+
+os.chdir(task_folder_path)
 
 count = 0
 crit = False
@@ -635,11 +689,11 @@ resp_acc = []
 tar = 0
 
 for frame in range(len(draw_target)):
-    if draw_target[frame] == 1:
+    if draw_target_min[frame] == 1:
         crit = False
         target = True
         count = 0
-    elif draw_target[frame] == 2:
+    elif draw_target_min[frame] == 2:
         target = True
         crit = True
         count = 0
@@ -660,18 +714,33 @@ for frame in range(len(draw_target)):
             pass
         
     elif target:
-        if crit:
-            resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,0])
-        else:
-            resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,1])
-        count = 0
-        target = False
-        tar += 1
+        try:
+            if crit:
+                resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,0])
+            else:
+                resp_acc.append([targetlist[tar][0],resplist[frame][1],crit,1])
+            count = 0
+            target = False
+            tar += 1
+        except (IndexError):
+            pass
         
 f = open(basename + '_qc.log', 'w')
 f.write('Onset, Resp, Crit?, Acc\n')
 for k in resp_acc:
     f.write('{},{},{},{}\n'.format(k[0],k[1],k[2],k[3]))
+f.close()
+
+# In[Debug - Frame by Frame]:
+
+os.chdir(debug_folder_path)
+
+f = open(basename + '_debug.log', 'w')
+f.write("""Start Time\tNearest Frame\tTCon\tNTCon\tTarget\tTime Post Flip\tTOnset/Offset?\tTarget Off Debug List\n""")
+for v in debug:
+    for x in v:
+        f.write('{}\t'.format(x))
+    f.write('\n')
 f.close()
 
 # In[Debug - Target Onsets]: 
@@ -682,16 +751,6 @@ f.close()
 #    f.write('{},{},{},{}\n'.format(k[0],k[2],k[3],k[5]))
 #f.close()
 
-# In[Debug - Frame Onsets]:
-
-#pickle.dump(tlist,open('frame_onsets.txt','w'))
-
 # In[Exit]:
 
 win.close()
-
-
-
-
-
-
